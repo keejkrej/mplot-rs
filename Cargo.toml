@@ -3,10 +3,10 @@ name = "mplot"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
-description = "Native Rust plotting library with a plotpy-compatible API"
 readme = "README.md"
 categories = ["mathematics", "science"]
-keywords = ["plot", "2D", "matplotlib", "plotpy"]
+description = "Native Rust 2D plotting with matplotlib-inspired rendering fidelity"
+keywords = ["plot", "2D", "matplotlib", "visualization"]
 
 [dependencies]
 num-traits = "0.2"
@@ -15,6 +15,10 @@ plotters = { version = "0.3", default-features = true, features = ["ttf"] }
 [dev-dependencies]
 approx = "0.5"
 image = "0.25"
+
+[[example]]
+name = "line_panel"
+path = "examples/line_panel.rs"
 
 [[example]]
 name = "simple_line"

@@ -10,19 +10,19 @@ fn main() -> Result<()> {
                 &x,
                 &y,
                 LineStyle::new()
-                    .color(Color::hex("#1f77b4"))
+                    .color(Color::TABLEAU[0])
                     .label("y = x²"),
             )
             .axes(
                 AxesStyle::new()
-                    .title("Simple line plot")
+                    .title("Line panel")
                     .x_label("x")
                     .y_label("y"),
             );
         })
         .build()?;
 
-    figure.save("/tmp/mplot/simple_line.png", SaveOptions::default())?;
-    println!("wrote /tmp/mplot/simple_line.png");
+    figure.save("/tmp/mplot/line_panel.png", SaveOptions::default())?;
+    println!("wrote /tmp/mplot/line_panel.png");
     Ok(())
 }

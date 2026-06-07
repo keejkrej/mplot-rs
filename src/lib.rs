@@ -1,45 +1,63 @@
-//! Native Rust plotting with a plotpy-compatible API.
+//! Native Rust 2D plotting with matplotlib-inspired rendering fidelity.
 //!
-//! [plotpy](https://github.com/cpmech/plotpy) generates Python/Matplotlib scripts;
-//! **mplot** renders figures directly in Rust while exposing the same builder-style
-//! workflow (`Curve`, `Boxplot`, `Plot`, …).
+//! Build figures with [`FigureBuilder`], add series per panel, then export with
+//! [`Figure::save`].
 //!
 //! # Example
 //!
 //! ```
-//! use mplot::{Curve, Plot, StrError};
+//! use mplot::prelude::*;
 //!
-//! fn main() -> Result<(), StrError> {
-//!     let x = [0.0, 1.0, 2.0, 3.0];
-//!     let y = [0.0, 1.0, 4.0, 9.0];
+//! # fn demo() -> mplot::Result<()> {
+//! let x = [0.0, 1.0, 2.0, 3.0, 4.0];
+//! let y = [0.0, 1.0, 4.0, 9.0, 16.0];
 //!
-//!     let mut curve = Curve::new();
-//!     curve.set_line_color("#1f77b4");
-//!     curve.draw(&x, &y);
+//! let figure = Figure::builder()
+//!     .panel(GridPos::new(1, 1, 1), |p| {
+//!         p.line(
+//!             &x,
+//!             &y,
+//!             LineStyle::new()
+//!                 .color(Color::hex("#1f77b4"))
+//!                 .label("y = x²"),
+//!         )
+//!         .axes(
+//!             AxesStyle::new()
+//!                 .title("Simple line plot")
+//!                 .x_label("x")
+//!                 .y_label("y"),
+//!         );
+//!     })
+//!     .build()?;
 //!
-//!     let mut plot = Plot::new();
-//!     plot.add(&curve).set_labels("x", "y");
-//!     plot.save("/tmp/mplot/example.png")?;
-//!     Ok(())
-//! }
+//! figure.save("/tmp/mplot/example.png", SaveOptions::default())?;
+//! # Ok(())
+//! # }
 //! ```
-
-pub type StrError = &'static str;
 
 mod as_vector;
 mod auxiliary;
-mod boxplot;
 mod color;
+mod compile;
 mod constants;
-mod curve;
-mod graph;
-mod plot;
+mod error;
+mod figure;
+mod panel;
 mod render;
+mod series;
+
+pub mod prelude {
+    pub use crate::color::Color;
+    pub use crate::error::{Error, Result};
+    pub use crate::figure::{Figure, FigureBuilder, SaveOptions, Size};
+    pub use crate::panel::{AxesStyle, GridPos, LegendStyle, TickLabels};
+    pub use crate::series::{BoxplotStyle, LineDash, LineStyle, Marker, Scale, Series};
+}
 
 pub use as_vector::*;
 pub use auxiliary::*;
-pub use boxplot::*;
-pub use constants::*;
-pub use curve::*;
-pub use graph::*;
-pub use plot::*;
+pub use color::*;
+pub use error::*;
+pub use figure::*;
+pub use panel::*;
+pub use series::*;

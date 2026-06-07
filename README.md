@@ -1,28 +1,37 @@
 # mplot
 
-Native Rust plotting with a [plotpy](https://github.com/cpmech/plotpy)-compatible API.
+Native Rust 2D plotting with matplotlib-inspired rendering fidelity.
 
-[plotpy](https://github.com/cpmech/plotpy) builds Python/Matplotlib scripts and shells out to `python3`. **mplot renders figures directly in Rust** (PNG today) while keeping the same builder-style workflow: configure `Curve` / `Boxplot` objects, attach them to a `Plot`, then call `save`.
+**mplot** renders figures directly in Rust (PNG today) using an idiomatic builder API: configure panels with typed styles, add series, then export.
 
 ## Quick start
 
 ```rust
-use mplot::{Curve, Plot, StrError};
+use mplot::prelude::*;
 
-fn main() -> Result<(), StrError> {
+fn main() -> mplot::Result<()> {
     let x = [0.0, 1.0, 2.0, 3.0, 4.0];
     let y = [0.0, 1.0, 4.0, 9.0, 16.0];
 
-    let mut curve = Curve::new();
-    curve.set_line_color("#1f77b4").set_label("y = x²");
-    curve.draw(&x, &y);
+    let figure = Figure::builder()
+        .panel(GridPos::new(1, 1, 1), |p| {
+            p.line(
+                &x,
+                &y,
+                LineStyle::new()
+                    .color(Color::hex("#1f77b4"))
+                    .label("y = x²"),
+            )
+            .axes(
+                AxesStyle::new()
+                    .title("Simple line plot")
+                    .x_label("x")
+                    .y_label("y"),
+            );
+        })
+        .build()?;
 
-    let mut plot = Plot::new();
-    plot.add(&curve)
-        .set_title("Simple line plot")
-        .set_labels("x", "y");
-
-    plot.save("line.png")?;
+    figure.save("line.png", SaveOptions::default())?;
     Ok(())
 }
 ```
@@ -30,6 +39,7 @@ fn main() -> Result<(), StrError> {
 Run the bundled examples:
 
 ```bash
+cargo run --example line_panel
 cargo run --example simple_line
 cargo run --example subplot_lines
 cargo run --example boxplot_linear
@@ -41,37 +51,35 @@ cargo run --example gallery
 
 | Type | Role |
 |------|------|
-| `Plot` | Figure driver: subplots, axes, labels, scales, `save` |
-| `Curve` | Line/scatter data via `draw` |
-| `Boxplot` | Box-and-whisker groups via `draw` |
-| `GraphMaker` | Trait implemented by drawable entities |
+| `Figure` / `FigureBuilder` | Root document; size, panels, export |
+| `PanelBuilder` | One subplot: add series + attach `AxesStyle` |
+| `Series` | Enum of plot kinds (`Line`, `Boxplot`, …) |
+| `LineStyle`, `BoxplotStyle`, … | Per-series styling |
+| `AxesStyle` | Labels, scales, limits, ticks, grid |
+| `GridPos` | Subplot address (rows, cols, index) |
+| `Color`, `Scale`, `LineDash` | Typed styling enums |
+| `SaveOptions` | dpi, tight bbox, pad |
 
-Typical flow matches plotpy:
+Typical flow:
 
-1. Build and configure a graph entity (`Curve`, `Boxplot`, …).
-2. Call `draw` with your data.
-3. `plot.set_subplot(...).add(&entity).set_labels(...)` (chain axis options as needed).
-4. `plot.save("figure.png")`.
+1. `Figure::builder()` — set figure size and gaps if needed.
+2. `.panel(GridPos::new(r, c, i), |p| { … })` — add series and axes style per subplot.
+3. `.build()?` then `figure.save(path, SaveOptions::…)?`.
+
+Import everything common via `use mplot::prelude::*;`.
 
 ## Features
 
-- Subplot grids (`set_subplot`)
-- Linear and log *y* scales (`set_log_y`)
-- Custom tick labels (`set_ticks_x_labels`)
-- Figure size in inches (`set_figure_size_inches`)
+- Subplot grids via `GridPos`
+- Linear and log *y* scales (`Scale::Log`)
+- Custom tick labels (`AxesStyle::x_tick_labels`)
+- Figure size in inches (`Size::inches`)
 - Matplotlib-inspired default styling (DejaVu Sans, default line width, boxplot colors)
 
-## Comparison with plotpy
+## Fidelity tests
 
-| | plotpy | mplot |
-|---|--------|-------|
-| Backend | Python + Matplotlib | Rust + plotters |
-| Output | PNG/PDF/SVG via `python3` | PNG via `Plot::save` |
-| Runtime deps | Python, Matplotlib | None beyond the Rust binary |
-| API | `Plot`, `Curve`, `Boxplot`, … | Same names and patterns (MVP subset) |
-
-Optional: `scripts/mpl_reference.py` generates Matplotlib reference PNGs under `tests/fidelity/golden/`. Run `cargo test --test fidelity` to compare mplot output against those references.
+`scripts/mpl_reference.py` generates Matplotlib reference PNGs under `tests/fidelity/golden/`. Run `cargo test --test fidelity` to compare mplot output against those references.
 
 ## Status
 
-Early MVP. See `examples/` for supported plot types. HTML display, 3D, bar/histogram traces, and additional export formats are not implemented yet.
+Early development. Line plots and boxplots are supported. Bar, histogram, image, contour, legend, and SVG/PDF export are planned.

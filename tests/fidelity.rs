@@ -1,56 +1,65 @@
 //! Golden-image fidelity tests against matplotlib reference PNGs.
 
-use mplot::{Boxplot, Curve, Plot, StrError};
+use mplot::prelude::{AxesStyle, BoxplotStyle, Color, Figure, GridPos, LineStyle, SaveOptions, Scale, Size};
+use mplot::Result;
 use std::path::{Path, PathBuf};
 
 const GOLDEN_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fidelity/golden");
 const OUT_DIR: &str = "/tmp/mplot/fidelity";
 
-fn render_simple_line(path: &Path) -> Result<(), StrError> {
+fn render_simple_line(path: &Path) -> Result<()> {
     let x = [0.0, 1.0, 2.0, 3.0, 4.0];
     let y = [0.0, 1.0, 4.0, 9.0, 16.0];
 
-    let mut curve = Curve::new();
-    curve.set_line_color("#1f77b4").set_label("y = x²");
-    curve.draw(&x, &y);
-
-    let mut plot = Plot::new();
-    plot.add(&curve)
-        .set_title("Simple line plot")
-        .set_labels("x", "y");
-    plot.save(path)
+    Figure::builder()
+        .panel(GridPos::new(1, 1, 1), |p| {
+            p.line(
+                &x,
+                &y,
+                LineStyle::new()
+                    .color(Color::hex("#1f77b4"))
+                    .label("y = x²"),
+            )
+            .axes(
+                AxesStyle::new()
+                    .title("Simple line plot")
+                    .x_label("x")
+                    .y_label("y"),
+            );
+        })
+        .build()?
+        .save(path, SaveOptions::default())
 }
 
-fn render_subplot_lines(path: &Path) -> Result<(), StrError> {
+fn render_subplot_lines(path: &Path) -> Result<()> {
     let rows = 2;
     let cols = 2;
-    let mut plot = Plot::new();
-    plot.set_figure_size_inches(10.0, 8.0);
-
     let xs = [0.0, 1.0, 2.0, 3.0, 4.0];
-    let panels: [(&str, &str, [f64; 5]); 4] = [
-        ("Panel A", "#1f77b4", [0.0, 0.5, 1.5, 2.0, 2.5]),
-        ("Panel B", "#ff7f0e", [0.0, 0.8, 1.2, 1.8, 2.2]),
-        ("Panel C", "#2ca02c", [0.0, 0.3, 1.0, 1.4, 1.9]),
-        ("Panel D", "#d62728", [0.0, 0.6, 1.1, 1.6, 2.4]),
+    let panels: [(&str, Color, [f64; 5]); 4] = [
+        ("Panel A", Color::hex("#1f77b4"), [0.0, 0.5, 1.5, 2.0, 2.5]),
+        ("Panel B", Color::hex("#ff7f0e"), [0.0, 0.8, 1.2, 1.8, 2.2]),
+        ("Panel C", Color::hex("#2ca02c"), [0.0, 0.3, 1.0, 1.4, 1.9]),
+        ("Panel D", Color::hex("#d62728"), [0.0, 0.6, 1.1, 1.6, 2.4]),
     ];
 
+    let mut builder = Figure::builder().size(Size::inches(10.0, 8.0));
     for (index, (title, color, ys)) in panels.iter().enumerate() {
-        let mut curve = Curve::new();
-        curve.set_line_color(color);
-        curve.draw(&xs, ys);
-
-        plot.set_subplot(rows, cols, index + 1)
-            .add(&curve)
-            .set_title(title)
-            .set_labels("x", "y")
-            .set_yrange(0.0, 3.0);
+        builder = builder.panel(GridPos::new(rows, cols, index + 1), |p| {
+            p.line(&xs, ys, LineStyle::new().color(*color))
+                .axes(
+                    AxesStyle::new()
+                        .title(*title)
+                        .x_label("x")
+                        .y_label("y")
+                        .y_range(0.0, 3.0),
+                );
+        });
     }
 
-    plot.save(path)
+    builder.build()?.save(path, SaveOptions::default())
 }
 
-fn render_boxplot_linear(path: &Path) -> Result<(), StrError> {
+fn render_boxplot_linear(path: &Path) -> Result<()> {
     let groups = vec![
         vec![1.2, 1.5, 1.8, 2.0, 2.1],
         vec![2.0, 2.3, 2.5, 2.8, 3.0, 3.2],
@@ -59,18 +68,22 @@ fn render_boxplot_linear(path: &Path) -> Result<(), StrError> {
     let ticks = [1, 2, 3];
     let labels = ["Group A\n(n=5)", "Group B\n(n=6)", "Group C\n(n=4)"];
 
-    let mut boxes = Boxplot::new();
-    boxes.draw(&groups);
-
-    let mut plot = Plot::new();
-    plot.add(&boxes)
-        .set_title("Boxplot (linear y)")
-        .set_labels("category", "value")
-        .set_ticks_x_labels(&ticks, &labels);
-    plot.save(path)
+    Figure::builder()
+        .panel(GridPos::new(1, 1, 1), |p| {
+            p.boxplot(&groups, BoxplotStyle::new())
+                .axes(
+                    AxesStyle::new()
+                        .title("Boxplot (linear y)")
+                        .x_label("category")
+                        .y_label("value")
+                        .x_tick_labels(&ticks, &labels),
+                );
+        })
+        .build()?
+        .save(path, SaveOptions::default())
 }
 
-fn render_boxplot_log(path: &Path) -> Result<(), StrError> {
+fn render_boxplot_log(path: &Path) -> Result<()> {
     let groups = vec![
         vec![12.0, 18.0, 25.0, 31.0],
         vec![8.0, 15.0, 22.0, 29.0, 35.0],
@@ -79,76 +92,85 @@ fn render_boxplot_log(path: &Path) -> Result<(), StrError> {
     let ticks = [1, 2, 3];
     let labels = ["Group A\n(n=4)", "Group B\n(n=5)", "Group C\n(n=4)"];
 
-    let mut boxes = Boxplot::new();
-    boxes.draw(&groups);
-
-    let mut plot = Plot::new();
-    plot.set_figure_size_inches(8.0, 6.0)
-        .add(&boxes)
-        .set_title("Boxplot (log y)")
-        .set_labels("category", "value")
-        .set_ticks_x_labels(&ticks, &labels)
-        .set_log_y(true);
-    plot.save(path)
+    Figure::builder()
+        .size(Size::inches(8.0, 6.0))
+        .panel(GridPos::new(1, 1, 1), |p| {
+            p.boxplot(&groups, BoxplotStyle::new())
+                .axes(
+                    AxesStyle::new()
+                        .title("Boxplot (log y)")
+                        .x_label("category")
+                        .y_label("value")
+                        .x_tick_labels(&ticks, &labels)
+                        .y_scale(Scale::Log),
+                );
+        })
+        .build()?
+        .save(path, SaveOptions::default())
 }
 
-fn render_gallery_line(path: &Path) -> Result<(), StrError> {
+fn render_gallery_line(path: &Path) -> Result<()> {
     let x = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0];
     let y = [1.0, 1.4, 1.8, 2.2, 2.6, 3.0];
 
-    let mut curve = Curve::new();
-    curve.set_line_color("#2ca02c");
-    curve.draw(&x, &y);
-
-    let mut plot = Plot::new();
-    plot.add(&curve)
-        .set_title("Line plot")
-        .set_labels("x", "f(x)");
-    plot.save(path)
+    Figure::builder()
+        .panel(GridPos::new(1, 1, 1), |p| {
+            p.line(&x, &y, LineStyle::new().color(Color::hex("#2ca02c")))
+                .axes(
+                    AxesStyle::new()
+                        .title("Line plot")
+                        .x_label("x")
+                        .y_label("f(x)"),
+                );
+        })
+        .build()?
+        .save(path, SaveOptions::default())
 }
 
-fn render_gallery_subplots(path: &Path) -> Result<(), StrError> {
+fn render_gallery_subplots(path: &Path) -> Result<()> {
     let xs = [0.0, 2.0, 4.0, 6.0, 8.0];
-    let mut plot = Plot::new();
-    plot.set_figure_size_inches(10.0, 4.0);
+    let panels = [
+        ("Sine-ish", Color::hex("#1f77b4"), [0.0, 0.9, 1.4, 1.2, 0.8]),
+        ("Ramp", Color::hex("#ff7f0e"), [0.0, 0.5, 1.0, 1.5, 2.0]),
+    ];
 
-    for (index, (title, color, ys)) in [
-        ("Sine-ish", "#1f77b4", [0.0, 0.9, 1.4, 1.2, 0.8]),
-        ("Ramp", "#ff7f0e", [0.0, 0.5, 1.0, 1.5, 2.0]),
-    ]
-    .iter()
-    .enumerate()
-    {
-        let mut curve = Curve::new();
-        curve.set_line_color(color);
-        curve.draw(&xs, ys);
-
-        plot.set_subplot(1, 2, index + 1)
-            .add(&curve)
-            .set_title(title)
-            .set_labels("x", "y");
+    let mut builder = Figure::builder().size(Size::inches(10.0, 4.0));
+    for (index, (title, color, ys)) in panels.iter().enumerate() {
+        builder = builder.panel(GridPos::new(1, 2, index + 1), |p| {
+            p.line(&xs, ys, LineStyle::new().color(*color))
+                .axes(
+                    AxesStyle::new()
+                        .title(*title)
+                        .x_label("x")
+                        .y_label("y"),
+                );
+        });
     }
 
-    plot.save(path)
+    builder.build()?.save(path, SaveOptions::default())
 }
 
-fn render_gallery_boxplot(path: &Path) -> Result<(), StrError> {
+fn render_gallery_boxplot(path: &Path) -> Result<()> {
     let groups = vec![vec![2.0, 3.0, 4.0, 5.0], vec![4.0, 5.0, 6.0, 7.0, 8.0]];
     let ticks = [1, 2];
     let labels = ["Low", "High"];
 
-    let mut boxes = Boxplot::new();
-    boxes.draw(&groups);
-
-    let mut plot = Plot::new();
-    plot.add(&boxes)
-        .set_title("Two-group boxplot")
-        .set_labels("group", "measurement")
-        .set_ticks_x_labels(&ticks, &labels);
-    plot.save(path)
+    Figure::builder()
+        .panel(GridPos::new(1, 1, 1), |p| {
+            p.boxplot(&groups, BoxplotStyle::new())
+                .axes(
+                    AxesStyle::new()
+                        .title("Two-group boxplot")
+                        .x_label("group")
+                        .y_label("measurement")
+                        .x_tick_labels(&ticks, &labels),
+                );
+        })
+        .build()?
+        .save(path, SaveOptions::default())
 }
 
-fn compare_pngs(actual: &Path, golden: &Path, max_mean_delta: f64) -> Result<(), String> {
+fn compare_pngs(actual: &Path, golden: &Path, max_mean_delta: f64) -> std::result::Result<(), String> {
     let actual_img = image::open(actual).map_err(|err| err.to_string())?;
     let golden_img = image::open(golden).map_err(|err| err.to_string())?;
     let (aw, ah) = (actual_img.width(), actual_img.height());
@@ -182,9 +204,9 @@ fn compare_pngs(actual: &Path, golden: &Path, max_mean_delta: f64) -> Result<(),
 
 fn fidelity_case(
     name: &str,
-    render: fn(&Path) -> Result<(), StrError>,
+    render: fn(&Path) -> Result<()>,
     max_mean_delta: f64,
-) -> Result<(), String> {
+) -> std::result::Result<(), String> {
     std::fs::create_dir_all(OUT_DIR).map_err(|err| err.to_string())?;
     let out = PathBuf::from(OUT_DIR).join(name);
     let golden = PathBuf::from(GOLDEN_DIR).join(name);

@@ -1,7 +1,5 @@
+use crate::render::model::{BoxplotSeries, CompiledPanel, CompiledSeries};
 use crate::render::mpl_style::{MPL_XMARGIN, MPL_YMARGIN};
-use crate::boxplot::BoxplotData;
-use crate::graph::GraphEntity;
-use crate::plot::Panel;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct BoxStats {
@@ -13,27 +11,27 @@ pub struct BoxStats {
     pub fliers: Vec<f64>,
 }
 
-pub(crate) fn panel_bounds(panel: &Panel) -> (f64, f64, f64, f64) {
+pub(crate) fn panel_bounds(panel: &CompiledPanel) -> (f64, f64, f64, f64) {
     let mut xmin = f64::INFINITY;
     let mut xmax = f64::NEG_INFINITY;
     let mut ymin = f64::INFINITY;
     let mut ymax = f64::NEG_INFINITY;
 
-    for entity in panel.entities() {
-        match entity {
-            GraphEntity::Curve(curve) => {
+    for series in &panel.series {
+        match series {
+            CompiledSeries::Line(curve) => {
                 for (x, y) in curve.x.iter().zip(curve.y.iter()) {
                     if x.is_finite() {
                         xmin = xmin.min(*x);
                         xmax = xmax.max(*x);
                     }
-                    if y.is_finite() && usable_for_axis(*y, panel.log_y()) {
+                    if y.is_finite() && usable_for_axis(*y, panel.log_y) {
                         ymin = ymin.min(*y);
                         ymax = ymax.max(*y);
                     }
                 }
             }
-            GraphEntity::Boxplot(boxes) => {
+            CompiledSeries::Boxplot(boxes) => {
                 let positions = box_positions(boxes);
                 for pos in &positions {
                     xmin = xmin.min(*pos - 0.5);
@@ -41,7 +39,7 @@ pub(crate) fn panel_bounds(panel: &Panel) -> (f64, f64, f64, f64) {
                 }
                 for group in &boxes.groups {
                     for value in group {
-                        if value.is_finite() && usable_for_axis(*value, panel.log_y()) {
+                        if value.is_finite() && usable_for_axis(*value, panel.log_y) {
                             ymin = ymin.min(*value);
                             ymax = ymax.max(*value);
                         }
@@ -66,14 +64,14 @@ pub(crate) fn panel_bounds(panel: &Panel) -> (f64, f64, f64, f64) {
         ymax = ymin + 1.0;
     }
 
-    if panel.xrange().is_none() {
+    if panel.xrange.is_none() {
         let span = xmax - xmin;
         xmin -= span * MPL_XMARGIN;
         xmax += span * MPL_XMARGIN;
     }
-    if panel.yrange().is_none() {
+    if panel.yrange.is_none() {
         let span = ymax - ymin;
-        if panel.log_y() {
+        if panel.log_y {
             if ymin > 0.0 {
                 let log_span = ymax / ymin;
                 ymin /= log_span.powf(MPL_YMARGIN);
@@ -88,7 +86,7 @@ pub(crate) fn panel_bounds(panel: &Panel) -> (f64, f64, f64, f64) {
     (xmin, xmax, ymin, ymax)
 }
 
-pub(crate) fn box_positions(boxes: &BoxplotData) -> Vec<f64> {
+pub(crate) fn box_positions(boxes: &BoxplotSeries) -> Vec<f64> {
     if !boxes.positions.is_empty() {
         return boxes.positions.clone();
     }
@@ -189,16 +187,16 @@ pub(crate) fn usable_for_axis(value: f64, log: bool) -> bool {
 }
 
 pub(crate) fn apply_panel_limits(
-    panel: &Panel,
+    panel: &CompiledPanel,
     auto: (f64, f64, f64, f64),
 ) -> (f64, f64, f64, f64) {
     let (mut xmin, mut xmax, mut ymin, mut ymax) = auto;
-    if let Some((lo, hi)) = panel.xrange() {
+    if let Some((lo, hi)) = panel.xrange {
         xmin = lo;
         xmax = hi;
     }
-    if let Some((lo, hi)) = panel.yrange() {
-        if panel.log_y() {
+    if let Some((lo, hi)) = panel.yrange {
+        if panel.log_y {
             ymin = lo.max(1e-300_f64);
             ymax = hi.max(1e-300_f64);
         } else {
@@ -207,7 +205,7 @@ pub(crate) fn apply_panel_limits(
         }
     }
 
-    if panel.log_y() {
+    if panel.log_y {
         ymin = transform_axis(ymin, true);
         ymax = transform_axis(ymax, true);
     }

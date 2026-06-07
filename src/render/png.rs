@@ -6,14 +6,11 @@ use plotters::coord::types::RangedCoordf64;
 use plotters::coord::Shift;
 use plotters::element::{Circle, PathElement, Rectangle};
 use plotters::prelude::*;
+use plotters::series::LineSeries as PlotLineSeries;
 use plotters::style::{Color, RGBColor, ShapeStyle};
 
-use crate::boxplot::BoxplotData;
-use crate::curve::CurveData;
-use crate::graph::GraphEntity;
-use crate::plot::Panel;
-use crate::plot::Plot;
 use crate::render::layout::{pad_inches_px, subplot_panels};
+use crate::render::model::{BoxplotSeries, CompiledFigure, CompiledPanel, CompiledSeries};
 use crate::render::mpl_style::{
     pt_to_px, tick_size_px, CHART_MARGIN_PX, LABEL_AREA_BOTTOM, LABEL_AREA_LEFT, MPL_BOX_EDGE,
     MPL_BOX_FACE, MPL_BOX_LINE_WIDTH, MPL_FLIER_SIZE, MPL_FONT, MPL_GRID, MPL_MEDIAN,
@@ -26,19 +23,18 @@ use crate::render::scene::{
 use crate::render::ticks::{
     format_linear, format_log_axis_coord, format_log_data, linear_ticks, log_ticks_data,
 };
-use crate::StrError;
+use crate::series::LineDash;
 
 type Chart<'a> = ChartContext<'a, BitMapBackend<'a>, Cartesian2d<RangedCoordf64, RangedCoordf64>>;
 
-pub fn render_plot(plot: &Plot, path: &Path) -> Result<(), StrError> {
-    if plot.panels().is_empty() {
-        return Err("plot has no panels");
+pub fn render(figure: &CompiledFigure, path: &Path) -> Result<(), &'static str> {
+    if figure.panels.is_empty() {
+        return Err("figure has no panels");
     }
 
-    let pad_px = pad_inches_px(plot.save_pad_inches(), plot.dpi());
-    let width_px = (plot.figure_width_inches() * plot.dpi() as f64).round() as u32 + 2 * pad_px;
-    let height_px =
-        (plot.figure_height_inches() * plot.dpi() as f64).round() as u32 + 2 * pad_px;
+    let pad_px = pad_inches_px(figure.save_pad_inches, figure.dpi);
+    let width_px = (figure.width_in * figure.dpi as f64).round() as u32 + 2 * pad_px;
+    let height_px = (figure.height_in * figure.dpi as f64).round() as u32 + 2 * pad_px;
     if width_px <= 2 * pad_px || height_px <= 2 * pad_px {
         return Err("figure size must be positive");
     }
@@ -51,30 +47,30 @@ pub fn render_plot(plot: &Plot, path: &Path) -> Result<(), StrError> {
     let inner_h = height_px - 2 * pad_px;
     let canvas = root.margin(pad_px, pad_px, pad_px, pad_px);
 
-    let (rows, cols) = grid_size(plot);
+    let (rows, cols) = grid_size(figure);
     let panel_rects = subplot_panels(
         inner_w,
         inner_h,
         rows,
         cols,
-        plot.h_gap(),
-        plot.v_gap(),
-        plot.save_tight(),
+        figure.h_gap,
+        figure.v_gap,
+        figure.save_tight,
     );
 
     if rows * cols == 1 {
-        for panel in plot.panels() {
-            if panel.hide_axes() && panel.entities().is_empty() {
+        for panel in &figure.panels {
+            if panel.hide_axes && panel.series.is_empty() {
                 continue;
             }
-            draw_panel_in_area(plot, panel, &canvas)?;
+            draw_panel_in_area(figure, panel, &canvas)?;
         }
     } else {
-        for panel in plot.panels() {
-            if panel.hide_axes() && panel.entities().is_empty() {
+        for panel in &figure.panels {
+            if panel.hide_axes && panel.series.is_empty() {
                 continue;
             }
-            let index = panel.key().index();
+            let index = panel.index;
             if index == 0 || index > rows * cols {
                 return Err("invalid subplot index");
             }
@@ -90,7 +86,7 @@ pub fn render_plot(plot: &Plot, path: &Path) -> Result<(), StrError> {
             );
             area.fill(&RGBColor(255, 255, 255))
                 .map_err(|_| "failed to clear subplot")?;
-            draw_panel_in_area(plot, panel, &area)?;
+            draw_panel_in_area(figure, panel, &area)?;
         }
     }
 
@@ -98,15 +94,10 @@ pub fn render_plot(plot: &Plot, path: &Path) -> Result<(), StrError> {
     Ok(())
 }
 
-fn grid_size(plot: &Plot) -> (usize, usize) {
-    plot.panels()
-        .iter()
-        .fold((1usize, 1usize), |(rows, cols), panel| {
-            (
-                rows.max(panel.key().rows()),
-                cols.max(panel.key().cols()),
-            )
-        })
+fn grid_size(figure: &CompiledFigure) -> (usize, usize) {
+    figure.panels.iter().fold((1usize, 1usize), |(rows, cols), panel| {
+        (rows.max(panel.rows), cols.max(panel.cols))
+    })
 }
 
 struct TickConfig {
@@ -116,8 +107,8 @@ struct TickConfig {
     y_label_map: std::collections::HashMap<i64, String>,
 }
 
-fn tick_config(panel: &Panel, xmin: f64, xmax: f64, ymin: f64, ymax: f64) -> TickConfig {
-    let (x_count, x_label_map) = if let Some(custom) = panel.ticks_x() {
+fn tick_config(panel: &CompiledPanel, xmin: f64, xmax: f64, ymin: f64, ymax: f64) -> TickConfig {
+    let (x_count, x_label_map) = if let Some(custom) = &panel.ticks_x {
         let map = custom
             .ticks()
             .iter()
@@ -136,18 +127,18 @@ fn tick_config(panel: &Panel, xmin: f64, xmax: f64, ymin: f64, ymax: f64) -> Tic
         (ticks.len().max(1), map)
     };
 
-    let (y_count, y_label_map) = if let Some(custom) = panel.ticks_y() {
+    let (y_count, y_label_map) = if let Some(custom) = &panel.ticks_y {
         let map = custom
             .ticks()
             .iter()
             .zip(custom.labels().iter())
             .map(|(tick, label)| {
-                let value = transform_axis(*tick, panel.log_y());
+                let value = transform_axis(*tick, panel.log_y);
                 ((value * 1000.0).round() as i64, label.replace("\\n", "\n"))
             })
             .collect();
         (custom.ticks().len().max(1), map)
-    } else if panel.log_y() {
+    } else if panel.log_y {
         let data_min = 10f64.powf(ymin);
         let data_max = 10f64.powf(ymax);
         let data_ticks = log_ticks_data(data_min, data_max);
@@ -177,11 +168,11 @@ fn tick_config(panel: &Panel, xmin: f64, xmax: f64, ymin: f64, ymax: f64) -> Tic
 }
 
 fn draw_panel_in_area<'a>(
-    plot: &Plot,
-    panel: &Panel,
+    figure: &CompiledFigure,
+    panel: &CompiledPanel,
     area: &DrawingArea<BitMapBackend<'a>, Shift>,
-) -> Result<(), StrError> {
-    if panel.hide_axes() {
+) -> Result<(), &'static str> {
+    if panel.hide_axes {
         return Ok(());
     }
 
@@ -189,10 +180,10 @@ fn draw_panel_in_area<'a>(
     let (xmin, xmax, ymin, ymax) = apply_panel_limits(panel, auto);
     let ticks = tick_config(panel, xmin, xmax, ymin, ymax);
 
-    let label_px = pt_to_px(plot.label_fontsize(), plot.dpi());
-    let tick_px = pt_to_px(plot.tick_fontsize(), plot.dpi());
-    let title_px = pt_to_px(plot.title_fontsize(), plot.dpi());
-    let tick_mark = tick_size_px(plot.dpi());
+    let label_px = pt_to_px(figure.label_fontsize, figure.dpi);
+    let tick_px = pt_to_px(figure.tick_fontsize, figure.dpi);
+    let title_px = pt_to_px(figure.title_fontsize, figure.dpi);
+    let tick_mark = tick_size_px(figure.dpi);
     let spine = RGBColor(MPL_SPINE.0, MPL_SPINE.1, MPL_SPINE.2);
 
     let mut chart = ChartBuilder::on(area)
@@ -200,15 +191,15 @@ fn draw_panel_in_area<'a>(
         .set_label_area_size(LabelAreaPosition::Left, LABEL_AREA_LEFT)
         .set_label_area_size(LabelAreaPosition::Bottom, LABEL_AREA_BOTTOM)
         .caption(
-            panel.title().unwrap_or(""),
+            panel.title.as_deref().unwrap_or(""),
             (MPL_FONT, title_px as i32),
         )
         .build_cartesian_2d(xmin..xmax, ymin..ymax)
         .map_err(|_| "failed to build chart")?;
 
-    let log_y = panel.log_y();
-    let custom_x = panel.ticks_x().is_some();
-    let custom_y = panel.ticks_y().is_some();
+    let log_y = panel.log_y;
+    let custom_x = panel.ticks_x.is_some();
+    let custom_y = panel.ticks_y.is_some();
     let x_label_map = ticks.x_label_map.clone();
     let y_label_map = ticks.y_label_map.clone();
     let x_formatter = move |value: &f64| {
@@ -237,8 +228,8 @@ fn draw_panel_in_area<'a>(
     };
 
     let mut mesh = chart.configure_mesh();
-    mesh.x_desc(panel.xlabel().unwrap_or(""))
-        .y_desc(panel.ylabel().unwrap_or(""))
+    mesh.x_desc(panel.xlabel.as_deref().unwrap_or(""))
+        .y_desc(panel.ylabel.as_deref().unwrap_or(""))
         .x_label_style((MPL_FONT, label_px as i32))
         .y_label_style((MPL_FONT, label_px as i32))
         .label_style((MPL_FONT, tick_px as i32))
@@ -254,7 +245,7 @@ fn draw_panel_in_area<'a>(
         .x_label_formatter(&x_formatter)
         .y_label_formatter(&y_formatter);
 
-    if panel.show_grid() {
+    if panel.show_grid {
         mesh.light_line_style(RGBColor(MPL_GRID.0, MPL_GRID.1, MPL_GRID.2));
     } else {
         mesh.disable_mesh();
@@ -263,10 +254,10 @@ fn draw_panel_in_area<'a>(
     mesh.draw().map_err(|_| "failed to draw mesh")?;
     draw_extra_spines(&mut chart, xmin, xmax, ymin, ymax, spine)?;
 
-    for entity in panel.entities() {
-        match entity {
-            GraphEntity::Curve(curve) => draw_curve(&mut chart, curve, panel.log_y())?,
-            GraphEntity::Boxplot(boxes) => draw_boxplot(&mut chart, boxes, panel.log_y())?,
+    for series in &panel.series {
+        match series {
+            CompiledSeries::Line(curve) => draw_curve(&mut chart, curve, panel.log_y)?,
+            CompiledSeries::Boxplot(boxes) => draw_boxplot(&mut chart, boxes, panel.log_y)?,
         }
     }
 
@@ -280,7 +271,7 @@ fn draw_extra_spines(
     ymin: f64,
     ymax: f64,
     spine: RGBColor,
-) -> Result<(), StrError> {
+) -> Result<(), &'static str> {
     let style = spine.stroke_width(1);
     chart
         .draw_series([
@@ -291,7 +282,11 @@ fn draw_extra_spines(
     Ok(())
 }
 
-fn draw_curve(chart: &mut Chart<'_>, curve: &CurveData, log_y: bool) -> Result<(), StrError> {
+fn draw_curve(
+    chart: &mut Chart<'_>,
+    curve: &crate::render::model::LineSeries,
+    log_y: bool,
+) -> Result<(), &'static str> {
     if curve.x.len() != curve.y.len() || curve.x.is_empty() {
         return Ok(());
     }
@@ -306,9 +301,9 @@ fn draw_curve(chart: &mut Chart<'_>, curve: &CurveData, log_y: bool) -> Result<(
         return Ok(());
     }
 
-    let rgb = curve.rgb_color();
-    let width = if curve.line_width > 0.0 {
-        curve.line_width
+    let rgb = curve.color.to_rgb();
+    let width = if curve.width > 0.0 {
+        curve.width
     } else {
         crate::render::mpl_style::MPL_LINE_WIDTH
     };
@@ -319,29 +314,31 @@ fn draw_curve(chart: &mut Chart<'_>, curve: &CurveData, log_y: bool) -> Result<(
         stroke_width,
     };
 
-    match curve.line_style.as_str() {
-        "--" => chart
+    match curve.dash {
+        LineDash::Dashed => chart
             .draw_series(DashedLineSeries::new(points.clone(), 5, 5, style))
             .map_err(|_| "failed to draw curve")?,
-        "-." => chart
+        LineDash::DashDot => chart
             .draw_series(DashedLineSeries::new(points.clone(), 8, 4, style))
             .map_err(|_| "failed to draw curve")?,
-        ":" => chart
+        LineDash::Dotted => chart
             .draw_series(DashedLineSeries::new(points.clone(), 1, 3, style))
             .map_err(|_| "failed to draw curve")?,
-        _ => chart
-            .draw_series(LineSeries::new(points, style))
+        LineDash::Solid => chart
+            .draw_series(PlotLineSeries::new(points, style))
             .map_err(|_| "failed to draw curve")?,
     };
     Ok(())
 }
 
-fn draw_boxplot(chart: &mut Chart<'_>, boxes: &BoxplotData, log_y: bool) -> Result<(), StrError> {
-    let whisker = boxes.whisker.unwrap_or(1.5);
+fn draw_boxplot(
+    chart: &mut Chart<'_>,
+    boxes: &BoxplotSeries,
+    log_y: bool,
+) -> Result<(), &'static str> {
+    let whisker = boxes.whisker;
     let positions = box_positions(boxes);
-    let width = boxes
-        .width
-        .unwrap_or_else(|| default_box_width(&positions));
+    let width = boxes.width.unwrap_or_else(|| default_box_width(&positions));
     let cap_width = 0.5 * width;
     let edge = RGBColor(MPL_BOX_EDGE.0, MPL_BOX_EDGE.1, MPL_BOX_EDGE.2);
     let fill = RGBColor(MPL_BOX_FACE.0, MPL_BOX_FACE.1, MPL_BOX_FACE.2);
