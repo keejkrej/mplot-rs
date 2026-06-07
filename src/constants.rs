@@ -1,0 +1,7 @@
+pub const DEFAULT_DPI: u32 = 100;
+pub const DEFAULT_FIGURE_WIDTH_IN: f64 = 6.4;
+pub const DEFAULT_FIGURE_HEIGHT_IN: f64 = 4.8;
+pub const DEFAULT_FONT_SIZE: f64 = 18.0;
+pub const DEFAULT_TICK_FONT_SIZE: f64 = 17.0;
+pub const DEFAULT_VERTICAL_GAP: f64 = 0.35;
+pub const DEFAULT_HORIZONTAL_GAP: f64 = 0.2;

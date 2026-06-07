@@ -1,0 +1,28 @@
+[package]
+name = "mplot"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Native Rust plotting library with a plotpy-compatible API"
+readme = "README.md"
+categories = ["mathematics", "science"]
+keywords = ["plot", "2D", "matplotlib", "plotpy"]
+
+[dependencies]
+num-traits = "0.2"
+plotters = { version = "0.3", default-features = true, features = ["ttf"] }
+
+[dev-dependencies]
+approx = "0.5"
+
+[[example]]
+name = "timeseries_grid"
+path = "examples/timeseries_grid.rs"
+
+[[example]]
+name = "fit_boxplot"
+path = "examples/fit_boxplot.rs"
+
+[[example]]
+name = "auc_boxplot"
+path = "examples/auc_boxplot.rs"
