@@ -9,6 +9,7 @@ use plotters::prelude::*;
 use plotters::series::LineSeries as PlotLineSeries;
 use plotters::style::{Color, RGBColor, ShapeStyle};
 
+use crate::axes::{data_bounds, format_axis_tick, tick_plan, view_limits, PanelScales};
 use crate::render::layout::{pad_inches_px, subplot_panels};
 use crate::render::model::{BoxplotSeries, CompiledFigure, CompiledPanel, CompiledSeries};
 use crate::render::mpl_style::{
@@ -16,13 +17,7 @@ use crate::render::mpl_style::{
     MPL_BOX_FACE, MPL_BOX_LINE_WIDTH, MPL_FLIER_SIZE, MPL_FONT, MPL_GRID, MPL_MEDIAN,
     MPL_MEDIAN_LINE_WIDTH, MPL_SPINE, MPL_WHISKER_LINE_WIDTH,
 };
-use crate::render::scene::{
-    apply_panel_limits, box_positions, box_stats, default_box_width, panel_bounds,
-    transform_axis,
-};
-use crate::render::ticks::{
-    format_linear, format_log_axis_coord, format_log_data, linear_ticks, log_ticks_data,
-};
+use crate::render::scene::{box_positions, box_stats, default_box_width};
 use crate::series::LineDash;
 
 type Chart<'a> = ChartContext<'a, BitMapBackend<'a>, Cartesian2d<RangedCoordf64, RangedCoordf64>>;
@@ -100,73 +95,6 @@ fn grid_size(figure: &CompiledFigure) -> (usize, usize) {
     })
 }
 
-struct TickConfig {
-    x_count: usize,
-    y_count: usize,
-    x_label_map: std::collections::HashMap<i64, String>,
-    y_label_map: std::collections::HashMap<i64, String>,
-}
-
-fn tick_config(panel: &CompiledPanel, xmin: f64, xmax: f64, ymin: f64, ymax: f64) -> TickConfig {
-    let (x_count, x_label_map) = if let Some(custom) = &panel.ticks_x {
-        let map = custom
-            .ticks()
-            .iter()
-            .zip(custom.labels().iter())
-            .map(|(tick, label)| {
-                ((*tick * 1000.0).round() as i64, label.replace("\\n", "\n"))
-            })
-            .collect();
-        (custom.ticks().len().max(1), map)
-    } else {
-        let ticks = linear_ticks(xmin, xmax, 6);
-        let map = ticks
-            .iter()
-            .map(|tick| ((*tick * 1000.0).round() as i64, format_linear(*tick)))
-            .collect();
-        (ticks.len().max(1), map)
-    };
-
-    let (y_count, y_label_map) = if let Some(custom) = &panel.ticks_y {
-        let map = custom
-            .ticks()
-            .iter()
-            .zip(custom.labels().iter())
-            .map(|(tick, label)| {
-                let value = transform_axis(*tick, panel.log_y);
-                ((value * 1000.0).round() as i64, label.replace("\\n", "\n"))
-            })
-            .collect();
-        (custom.ticks().len().max(1), map)
-    } else if panel.log_y {
-        let data_min = 10f64.powf(ymin);
-        let data_max = 10f64.powf(ymax);
-        let data_ticks = log_ticks_data(data_min, data_max);
-        let map = data_ticks
-            .iter()
-            .map(|tick| {
-                let axis = tick.log10();
-                ((axis * 1000.0).round() as i64, format_log_data(*tick))
-            })
-            .collect();
-        (data_ticks.len().max(1), map)
-    } else {
-        let ticks = linear_ticks(ymin, ymax, 6);
-        let map = ticks
-            .iter()
-            .map(|tick| ((*tick * 1000.0).round() as i64, format_linear(*tick)))
-            .collect();
-        (ticks.len().max(1), map)
-    };
-
-    TickConfig {
-        x_count,
-        y_count,
-        x_label_map,
-        y_label_map,
-    }
-}
-
 fn draw_panel_in_area<'a>(
     figure: &CompiledFigure,
     panel: &CompiledPanel,
@@ -176,9 +104,12 @@ fn draw_panel_in_area<'a>(
         return Ok(());
     }
 
-    let auto = panel_bounds(panel);
-    let (xmin, xmax, ymin, ymax) = apply_panel_limits(panel, auto);
-    let ticks = tick_config(panel, xmin, xmax, ymin, ymax);
+    let scales = PanelScales::from_panel(panel);
+    let data = data_bounds(panel);
+    let view = view_limits(panel, data);
+    let (xmin, xmax) = view.x;
+    let (ymin, ymax) = view.y;
+    let ticks = tick_plan(panel, view);
 
     let label_px = pt_to_px(figure.label_fontsize, figure.dpi);
     let tick_px = pt_to_px(figure.tick_fontsize, figure.dpi);
@@ -197,34 +128,25 @@ fn draw_panel_in_area<'a>(
         .build_cartesian_2d(xmin..xmax, ymin..ymax)
         .map_err(|_| "failed to build chart")?;
 
-    let log_y = panel.log_y;
-    let custom_x = panel.ticks_x.is_some();
-    let custom_y = panel.ticks_y.is_some();
     let x_label_map = ticks.x_label_map.clone();
     let y_label_map = ticks.y_label_map.clone();
+    let x_scale = scales.x;
+    let y_scale = scales.y;
+    let custom_x = ticks.custom_x;
+    let custom_y = ticks.custom_y;
     let x_formatter = move |value: &f64| {
         let key = (value * 1000.0).round() as i64;
         if let Some(label) = x_label_map.get(&key) {
             return label.clone();
         }
-        if custom_x {
-            String::new()
-        } else {
-            format_linear(*value)
-        }
+        format_axis_tick(x_scale, custom_x, *value)
     };
     let y_formatter = move |value: &f64| {
         let key = (value * 1000.0).round() as i64;
         if let Some(label) = y_label_map.get(&key) {
             return label.clone();
         }
-        if custom_y {
-            String::new()
-        } else if log_y {
-            format_log_axis_coord(*value)
-        } else {
-            format_linear(*value)
-        }
+        format_axis_tick(y_scale, custom_y, *value)
     };
 
     let mut mesh = chart.configure_mesh();
@@ -256,8 +178,8 @@ fn draw_panel_in_area<'a>(
 
     for series in &panel.series {
         match series {
-            CompiledSeries::Line(curve) => draw_curve(&mut chart, curve, panel.log_y)?,
-            CompiledSeries::Boxplot(boxes) => draw_boxplot(&mut chart, boxes, panel.log_y)?,
+            CompiledSeries::Line(curve) => draw_curve(&mut chart, curve, scales)?,
+            CompiledSeries::Boxplot(boxes) => draw_boxplot(&mut chart, boxes, scales)?,
         }
     }
 
@@ -285,7 +207,7 @@ fn draw_extra_spines(
 fn draw_curve(
     chart: &mut Chart<'_>,
     curve: &crate::render::model::LineSeries,
-    log_y: bool,
+    scales: PanelScales,
 ) -> Result<(), &'static str> {
     if curve.x.len() != curve.y.len() || curve.x.is_empty() {
         return Ok(());
@@ -294,8 +216,8 @@ fn draw_curve(
         .x
         .iter()
         .zip(curve.y.iter())
-        .filter(|(_, y)| y.is_finite())
-        .map(|(x, y)| (*x, transform_axis(*y, log_y)))
+        .filter(|(x, y)| scales.x.usable(**x) && scales.y.usable(**y))
+        .map(|(x, y)| scales.map_xy(*x, *y))
         .collect();
     if points.len() < 2 {
         return Ok(());
@@ -334,7 +256,7 @@ fn draw_curve(
 fn draw_boxplot(
     chart: &mut Chart<'_>,
     boxes: &BoxplotSeries,
-    log_y: bool,
+    scales: PanelScales,
 ) -> Result<(), &'static str> {
     let whisker = boxes.whisker;
     let positions = box_positions(boxes);
@@ -351,11 +273,11 @@ fn draw_boxplot(
             continue;
         };
 
-        let y_low = transform_axis(stats.whislo, log_y);
-        let y_q1 = transform_axis(stats.q1, log_y);
-        let y_med = transform_axis(stats.med, log_y);
-        let y_q3 = transform_axis(stats.q3, log_y);
-        let y_high = transform_axis(stats.whishi, log_y);
+        let y_low = scales.y.data_to_axis(stats.whislo);
+        let y_q1 = scales.y.data_to_axis(stats.q1);
+        let y_med = scales.y.data_to_axis(stats.med);
+        let y_q3 = scales.y.data_to_axis(stats.q3);
+        let y_high = scales.y.data_to_axis(stats.whishi);
         let x0 = pos - width / 2.0;
         let x1 = pos + width / 2.0;
         let cap_x0 = pos - cap_width / 2.0;
@@ -428,7 +350,7 @@ fn draw_boxplot(
 
         if !boxes.no_fliers {
             for flier in stats.fliers {
-                let y = transform_axis(flier, log_y);
+                let y = scales.y.data_to_axis(flier);
                 chart
                     .draw_series(std::iter::once(Circle::new(
                         (pos, y),

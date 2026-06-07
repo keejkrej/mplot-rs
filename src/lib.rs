@@ -37,6 +37,7 @@
 
 mod as_vector;
 mod auxiliary;
+mod axes;
 mod color;
 mod compile;
 mod constants;
@@ -44,7 +45,9 @@ mod error;
 mod figure;
 mod panel;
 mod render;
+mod scale;
 mod series;
+mod ticker;
 
 pub mod prelude {
     pub use crate::color::Color;
