@@ -14,15 +14,24 @@ plotters = { version = "0.3", default-features = true, features = ["ttf"] }
 
 [dev-dependencies]
 approx = "0.5"
+image = "0.25"
 
 [[example]]
-name = "timeseries_grid"
-path = "examples/timeseries_grid.rs"
+name = "simple_line"
+path = "examples/simple_line.rs"
 
 [[example]]
-name = "fit_boxplot"
-path = "examples/fit_boxplot.rs"
+name = "subplot_lines"
+path = "examples/subplot_lines.rs"
 
 [[example]]
-name = "auc_boxplot"
-path = "examples/auc_boxplot.rs"
+name = "boxplot_linear"
+path = "examples/boxplot_linear.rs"
+
+[[example]]
+name = "boxplot_log"
+path = "examples/boxplot_log.rs"
+
+[[example]]
+name = "gallery"
+path = "examples/gallery.rs"

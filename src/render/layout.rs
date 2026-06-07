@@ -1,0 +1,85 @@
+use crate::render::mpl_style::{
+    MPL_SUBPLOT_BOTTOM, MPL_SUBPLOT_LEFT, MPL_SUBPLOT_RIGHT, MPL_SUBPLOT_TOP, MPL_TIGHT_BOTTOM,
+    MPL_TIGHT_LEFT, MPL_TIGHT_RIGHT, MPL_TIGHT_TOP,
+};
+
+#[derive(Clone, Copy, Debug)]
+pub struct PanelRect {
+    pub x: u32,
+    pub y: u32,
+    pub width: u32,
+    pub height: u32,
+}
+
+pub fn subplot_panels(
+    figure_width_px: u32,
+    figure_height_px: u32,
+    rows: usize,
+    cols: usize,
+    wspace: f64,
+    hspace: f64,
+    tight: bool,
+) -> Vec<PanelRect> {
+    if rows == 0 || cols == 0 {
+        return Vec::new();
+    }
+
+    let (left, right, bottom, top) = if tight {
+        (MPL_TIGHT_LEFT, MPL_TIGHT_RIGHT, MPL_TIGHT_BOTTOM, MPL_TIGHT_TOP)
+    } else {
+        (
+            MPL_SUBPLOT_LEFT,
+            MPL_SUBPLOT_RIGHT,
+            MPL_SUBPLOT_BOTTOM,
+            MPL_SUBPLOT_TOP,
+        )
+    };
+
+    let fw = figure_width_px as f64;
+    let fh = figure_height_px as f64;
+    let usable_w = fw * (right - left);
+    let usable_h = fh * (top - bottom);
+
+    let cell_w = usable_w / (cols as f64 + (cols.saturating_sub(1) as f64) * wspace);
+    let cell_h = usable_h / (rows as f64 + (rows.saturating_sub(1) as f64) * hspace);
+    let gap_w = wspace * cell_w;
+    let gap_h = hspace * cell_h;
+    let cell_h_frac = cell_h / fh;
+    let gap_h_frac = gap_h / fh;
+
+    let mut panels = Vec::with_capacity(rows * cols);
+    for row in 0..rows {
+        for col in 0..cols {
+            let x = (left * fw + col as f64 * (cell_w + gap_w)).round() as u32;
+            let mpl_bottom_frac =
+                bottom + (rows - 1 - row) as f64 * (cell_h_frac + gap_h_frac);
+            let mpl_top_frac = mpl_bottom_frac + cell_h_frac;
+            panels.push(PanelRect {
+                x,
+                y: (fh * (1.0 - mpl_top_frac)).round() as u32,
+                width: cell_w.max(1.0).round() as u32,
+                height: cell_h.max(1.0).round() as u32,
+            });
+        }
+    }
+    panels
+}
+
+pub fn pad_inches_px(pad_inches: Option<f64>, dpi: u32) -> u32 {
+    pad_inches
+        .map(|pad| (pad * dpi as f64).round() as u32)
+        .unwrap_or(0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn subplot_grid_has_expected_count() {
+        let panels = subplot_panels(1000, 800, 2, 2, 0.2, 0.2, false);
+        assert_eq!(panels.len(), 4);
+        assert!(panels[0].width > 0);
+        assert!(panels[0].height > 0);
+    }
+}

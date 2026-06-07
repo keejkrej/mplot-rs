@@ -10,6 +10,7 @@ pub struct BoxplotData {
     pub positions: Vec<f64>,
     pub width: Option<f64>,
     pub no_fliers: bool,
+    pub patch_artist: bool,
 }
 
 pub struct Boxplot {
@@ -73,6 +74,7 @@ impl Boxplot {
             positions: self.positions.clone(),
             width: self.width,
             no_fliers: self.no_fliers,
+            patch_artist: self.patch_artist,
         });
     }
 
@@ -123,6 +125,9 @@ impl Boxplot {
 
     pub fn set_patch_artist(&mut self, flag: bool) -> &mut Self {
         self.patch_artist = flag;
+        if let Some(drawn) = &mut self.drawn {
+            drawn.patch_artist = flag;
+        }
         self
     }
 

@@ -1,6 +1,7 @@
 use num_traits::{Num, NumCast};
 
 use crate::as_vector::{vector_to_f64, AsVector};
+use crate::constants::DEFAULT_LINE_WIDTH;
 use crate::color;
 use crate::graph::{GraphEntity, GraphMaker};
 use plotters::style::RGBColor;
@@ -50,7 +51,7 @@ impl Curve {
             line_alpha: 1.0,
             line_color: String::new(),
             line_style: String::new(),
-            line_width: 1.0,
+            line_width: DEFAULT_LINE_WIDTH,
             drawn: None,
             buffer: String::new(),
         }

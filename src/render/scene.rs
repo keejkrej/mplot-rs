@@ -1,6 +1,17 @@
+use crate::render::mpl_style::{MPL_XMARGIN, MPL_YMARGIN};
 use crate::boxplot::BoxplotData;
 use crate::graph::GraphEntity;
 use crate::plot::Panel;
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct BoxStats {
+    pub whislo: f64,
+    pub q1: f64,
+    pub med: f64,
+    pub q3: f64,
+    pub whishi: f64,
+    pub fliers: Vec<f64>,
+}
 
 pub(crate) fn panel_bounds(panel: &Panel) -> (f64, f64, f64, f64) {
     let mut xmin = f64::INFINITY;
@@ -17,13 +28,13 @@ pub(crate) fn panel_bounds(panel: &Panel) -> (f64, f64, f64, f64) {
                         xmax = xmax.max(*x);
                     }
                     if y.is_finite() && usable_for_axis(*y, panel.log_y()) {
-                        ymin = ymin.min(transform_axis(*y, panel.log_y()));
-                        ymax = ymax.max(transform_axis(*y, panel.log_y()));
+                        ymin = ymin.min(*y);
+                        ymax = ymax.max(*y);
                     }
                 }
             }
             GraphEntity::Boxplot(boxes) => {
-                let positions = box_positions(&boxes);
+                let positions = box_positions(boxes);
                 for pos in &positions {
                     xmin = xmin.min(*pos - 0.5);
                     xmax = xmax.max(*pos + 0.5);
@@ -31,9 +42,8 @@ pub(crate) fn panel_bounds(panel: &Panel) -> (f64, f64, f64, f64) {
                 for group in &boxes.groups {
                     for value in group {
                         if value.is_finite() && usable_for_axis(*value, panel.log_y()) {
-                            let v = transform_axis(*value, panel.log_y());
-                            ymin = ymin.min(v);
-                            ymax = ymax.max(v);
+                            ymin = ymin.min(*value);
+                            ymax = ymax.max(*value);
                         }
                     }
                 }
@@ -56,6 +66,25 @@ pub(crate) fn panel_bounds(panel: &Panel) -> (f64, f64, f64, f64) {
         ymax = ymin + 1.0;
     }
 
+    if panel.xrange().is_none() {
+        let span = xmax - xmin;
+        xmin -= span * MPL_XMARGIN;
+        xmax += span * MPL_XMARGIN;
+    }
+    if panel.yrange().is_none() {
+        let span = ymax - ymin;
+        if panel.log_y() {
+            if ymin > 0.0 {
+                let log_span = ymax / ymin;
+                ymin /= log_span.powf(MPL_YMARGIN);
+                ymax *= log_span.powf(MPL_YMARGIN);
+            }
+        } else {
+            ymin -= span * MPL_YMARGIN;
+            ymax += span * MPL_YMARGIN;
+        }
+    }
+
     (xmin, xmax, ymin, ymax)
 }
 
@@ -66,34 +95,69 @@ pub(crate) fn box_positions(boxes: &BoxplotData) -> Vec<f64> {
     (1..=boxes.groups.len()).map(|i| i as f64).collect()
 }
 
-pub(crate) fn box_stats(values: &[f64], whisker: f64) -> Option<(f64, f64, f64, f64, f64)> {
+pub(crate) fn default_box_width(positions: &[f64]) -> f64 {
+    if positions.len() < 2 {
+        return 0.5;
+    }
+    let ptp = positions.last().unwrap() - positions.first().unwrap();
+    (0.15 * ptp).clamp(0.15, 0.5)
+}
+
+pub(crate) fn box_stats(values: &[f64], whisker: f64) -> Option<BoxStats> {
     let mut data: Vec<f64> = values.iter().copied().filter(|v| v.is_finite()).collect();
     if data.is_empty() {
         return None;
     }
     data.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-    let q1 = percentile(&data, 25.0);
-    let median = percentile(&data, 50.0);
-    let q3 = percentile(&data, 75.0);
+
+    let q1 = numpy_percentile(&data, 25.0);
+    let med = numpy_percentile(&data, 50.0);
+    let q3 = numpy_percentile(&data, 75.0);
     let iqr = q3 - q1;
-    let lower_fence = q1 - whisker * iqr;
-    let upper_fence = q3 + whisker * iqr;
-    let low = data
+
+    let (loval, hival) = if whisker <= 0.0 {
+        (*data.first().unwrap(), *data.last().unwrap())
+    } else {
+        (q1 - whisker * iqr, q3 + whisker * iqr)
+    };
+
+    let wiskhi_candidates: Vec<f64> = data.iter().copied().filter(|v| *v <= hival).collect();
+    let whishi = if wiskhi_candidates.is_empty() {
+        q3
+    } else {
+        let max_val = wiskhi_candidates
+            .into_iter()
+            .fold(f64::NEG_INFINITY, f64::max);
+        if max_val < q3 { q3 } else { max_val }
+    };
+
+    let wisklo_candidates: Vec<f64> = data.iter().copied().filter(|v| *v >= loval).collect();
+    let whislo = if wisklo_candidates.is_empty() {
+        q1
+    } else {
+        let min_val = wisklo_candidates
+            .into_iter()
+            .fold(f64::INFINITY, f64::min);
+        if min_val > q1 { q1 } else { min_val }
+    };
+
+    let fliers: Vec<f64> = data
         .iter()
         .copied()
-        .filter(|v| *v >= lower_fence)
-        .next()
-        .unwrap_or(q1);
-    let high = data
-        .iter()
-        .copied()
-        .filter(|v| *v <= upper_fence)
-        .last()
-        .unwrap_or(q3);
-    Some((low, q1, median, q3, high))
+        .filter(|v| *v < whislo || *v > whishi)
+        .collect();
+
+    Some(BoxStats {
+        whislo,
+        q1,
+        med,
+        q3,
+        whishi,
+        fliers,
+    })
 }
 
-fn percentile(sorted: &[f64], pct: f64) -> f64 {
+fn numpy_percentile(sorted: &[f64], pct: f64) -> f64 {
     if sorted.len() == 1 {
         return sorted[0];
     }
@@ -135,12 +199,35 @@ pub(crate) fn apply_panel_limits(
     }
     if let Some((lo, hi)) = panel.yrange() {
         if panel.log_y() {
-            ymin = transform_axis(lo.max(1e-300_f64), true);
-            ymax = transform_axis(hi.max(1e-300_f64), true);
+            ymin = lo.max(1e-300_f64);
+            ymax = hi.max(1e-300_f64);
         } else {
             ymin = lo;
             ymax = hi;
         }
     }
+
+    if panel.log_y() {
+        ymin = transform_axis(ymin, true);
+        ymax = transform_axis(ymax, true);
+    }
+
     (xmin, xmax, ymin, ymax)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use approx::assert_relative_eq;
+
+    #[test]
+    fn box_stats_matches_matplotlib_reference() {
+        let data = [1.2, 1.5, 1.8, 2.0, 2.1];
+        let stats = box_stats(&data, 1.5).unwrap();
+        assert_relative_eq!(stats.q1, 1.5, epsilon = 1e-9);
+        assert_relative_eq!(stats.med, 1.8, epsilon = 1e-9);
+        assert_relative_eq!(stats.q3, 2.0, epsilon = 1e-9);
+        assert_relative_eq!(stats.whislo, 1.2, epsilon = 1e-9);
+        assert_relative_eq!(stats.whishi, 2.1, epsilon = 1e-9);
+    }
 }
