@@ -52,3 +52,7 @@ path = "examples/bar_histogram.rs"
 [[example]]
 name = "gridspec_layout"
 path = "examples/gridspec_layout.rs"
+
+[[example]]
+name = "line_log_x"
+path = "examples/line_log_x.rs"

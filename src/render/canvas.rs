@@ -12,8 +12,8 @@ use crate::render::layout::{pad_inches_px, panel_rect_for_slot};
 use crate::render::legend::{collect_entries, draw_legend};
 use crate::render::model::{CompiledFigure, CompiledPanel, CompiledSeries};
 use crate::render::mpl_style::{
-    pt_to_px, tick_size_px, CHART_MARGIN_PX, LABEL_AREA_BOTTOM, LABEL_AREA_LEFT, MPL_FONT,
-    MPL_GRID, MPL_SPINE,
+    label_area_bottom_px, label_area_left_px, pt_to_px, tick_size_px, title_pad_px,
+    CHART_MARGIN_PX, MPL_FONT, MPL_GRID, MPL_SPINE, MPL_XTICK_MAJOR_WIDTH,
 };
 use crate::render::primitives::{draw_colorbar, draw_series};
 
@@ -132,11 +132,14 @@ fn draw_panel_in_area<DB: DrawingBackend>(
     let title_px = pt_to_px(figure.title_fontsize, figure.dpi);
     let tick_mark = tick_size_px(figure.dpi);
     let spine = RGBColor(MPL_SPINE.0, MPL_SPINE.1, MPL_SPINE.2);
+    let label_left = label_area_left_px(figure.tick_fontsize, figure.dpi);
+    let label_bottom = label_area_bottom_px(figure.label_fontsize, figure.tick_fontsize, figure.dpi);
+    let chart_margin = CHART_MARGIN_PX + title_pad_px(figure.title_fontsize, figure.dpi);
 
     let mut chart = ChartBuilder::on(&plot_area)
-        .margin(CHART_MARGIN_PX)
-        .set_label_area_size(LabelAreaPosition::Left, LABEL_AREA_LEFT)
-        .set_label_area_size(LabelAreaPosition::Bottom, LABEL_AREA_BOTTOM)
+        .margin(chart_margin)
+        .set_label_area_size(LabelAreaPosition::Left, label_left)
+        .set_label_area_size(LabelAreaPosition::Bottom, label_bottom)
         .caption(
             panel.title.as_deref().unwrap_or(""),
             (MPL_FONT, title_px as i32),
@@ -175,7 +178,7 @@ fn draw_panel_in_area<DB: DrawingBackend>(
         .axis_style(ShapeStyle {
             color: spine.to_rgba(),
             filled: false,
-            stroke_width: crate::render::mpl_style::MPL_AXES_LINE_WIDTH.round() as u32,
+            stroke_width: MPL_XTICK_MAJOR_WIDTH.round() as u32,
         })
         .set_all_tick_mark_size(tick_mark)
         .x_labels(ticks.x_count)
@@ -263,7 +266,7 @@ fn draw_extra_spines<DB: DrawingBackend>(
     ymax: f64,
     spine: RGBColor,
 ) -> Result<(), &'static str> {
-    let style = spine.stroke_width(1);
+    let style = spine.stroke_width(crate::render::mpl_style::MPL_AXES_LINE_WIDTH.round() as u32);
     chart
         .draw_series([
             PathElement::new(vec![(xmin, ymax), (xmax, ymax)], style),

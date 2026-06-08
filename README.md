@@ -75,14 +75,18 @@ Import everything common via `use mplot::prelude::*;`.
 - Subplot grids via `GridPos` or `GridSpec` (rowspan/colspan)
 - PNG, SVG, and PDF export (`figure.save("out.pdf", …)`)
 - Constrained layout for multi-panel figures and colorbar insets (`.constrained_layout(true)`)
-- Linear and log *y* scales (`Scale::Log`)
+- Linear and log x/y scales (`Scale::Log` on `AxesStyle::x_scale` / `y_scale`)
 - Custom tick labels (`AxesStyle::x_tick_labels`)
 - Figure size in inches (`Size::inches`)
 - Matplotlib-inspired default styling (DejaVu Sans, default line width, boxplot colors)
 
 ## Fidelity tests
 
-`scripts/mpl_reference.py` generates Matplotlib reference PNGs under `tests/fidelity/golden/`. Run `cargo test --test fidelity` to compare mplot output against those references.
+`.venv/bin/python scripts/mpl_reference.py` generates Matplotlib reference PNGs under `tests/fidelity/golden/` (uses explicit rcParams synced with `src/render/mpl_style.rs`). Run `cargo test --test fidelity` to compare mplot output against those references.
+
+Covered chart types: line, subplots, boxplot (linear/log y), bar, histogram, fill_between, image (viridis), contour, and log-x / log-log line plots.
+
+See the rcParams mapping table in [`src/render/mpl_style.rs`](src/render/mpl_style.rs).
 
 ## Status
 

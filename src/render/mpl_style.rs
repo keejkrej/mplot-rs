@@ -1,4 +1,23 @@
 //! Matplotlib rcParams defaults used by the native renderer.
+//!
+//! Python reference script (`scripts/mpl_reference.py`) mirrors these via `apply_mplot_rcparams()`:
+//!
+//! | matplotlib rcParam   | Rust constant              |
+//! |----------------------|----------------------------|
+//! | `figure.dpi`         | `DEFAULT_DPI` (constants)  |
+//! | `font.size`          | `MPL_FONT_SIZE`            |
+//! | `axes.titlesize`     | `MPL_FONT_SIZE`            |
+//! | `axes.labelsize`     | `MPL_FONT_SIZE`            |
+//! | `xtick.labelsize`    | `MPL_TICK_FONT_SIZE`       |
+//! | `ytick.labelsize`    | `MPL_TICK_FONT_SIZE`       |
+//! | `axes.linewidth`     | `MPL_AXES_LINE_WIDTH`      |
+//! | `lines.linewidth`    | `MPL_LINE_WIDTH`           |
+//! | `font.family`        | `MPL_FONT`                 |
+//! | `axes.titlepad`      | `MPL_TITLE_PAD`            |
+//! | `axes.labelpad`      | `MPL_LABEL_PAD`            |
+//! | `xtick.major.size`   | `MPL_XTICK_MAJOR_SIZE`     |
+//! | `xtick.major.width`  | `MPL_XTICK_MAJOR_WIDTH`    |
+//! | `xtick.major.pad`    | `MPL_XTICK_MAJOR_PAD`      |
 
 pub const MPL_FONT: &str = "DejaVu Sans";
 
@@ -41,8 +60,6 @@ pub const MPL_FLIER_SIZE: f64 = 6.0;
 pub const MPL_MARKER_SIZE: f64 = 6.0;
 
 pub const CHART_MARGIN_PX: i32 = 8;
-pub const LABEL_AREA_LEFT: u32 = 48;
-pub const LABEL_AREA_BOTTOM: u32 = 40;
 
 pub fn pt_to_px(points: f64, dpi: u32) -> f64 {
     points * dpi as f64 / 72.0
@@ -50,4 +67,27 @@ pub fn pt_to_px(points: f64, dpi: u32) -> f64 {
 
 pub fn tick_size_px(dpi: u32) -> i32 {
     pt_to_px(MPL_XTICK_MAJOR_SIZE, dpi).round() as i32
+}
+
+/// Left label area sized from tick font, tick padding, and y-axis label pad.
+pub fn label_area_left_px(tick_fontsize: f64, dpi: u32) -> u32 {
+    let tick_px = pt_to_px(tick_fontsize.max(MPL_TICK_FONT_SIZE * 0.5), dpi);
+    let pad_px = pt_to_px(MPL_XTICK_MAJOR_PAD + MPL_LABEL_PAD, dpi);
+    (tick_px * 2.2 + pad_px + CHART_MARGIN_PX as f64).round() as u32
+}
+
+/// Bottom label area sized from axis/tick fonts, tick marks, and label pad.
+pub fn label_area_bottom_px(label_fontsize: f64, tick_fontsize: f64, dpi: u32) -> u32 {
+    let label_px = pt_to_px(label_fontsize.max(MPL_FONT_SIZE * 0.5), dpi);
+    let tick_px = pt_to_px(tick_fontsize.max(MPL_TICK_FONT_SIZE * 0.5), dpi);
+    let tick_mark = tick_size_px(dpi) as f64;
+    let pad_px = pt_to_px(MPL_XTICK_MAJOR_PAD + MPL_LABEL_PAD, dpi);
+    (label_px * 0.35 + tick_px + tick_mark + pad_px + CHART_MARGIN_PX as f64).round() as u32
+}
+
+/// Extra top margin for panel titles (`axes.titlepad`).
+pub fn title_pad_px(title_fontsize: f64, dpi: u32) -> i32 {
+    let title_px = pt_to_px(title_fontsize.max(MPL_FONT_SIZE * 0.5), dpi);
+    let pad_px = pt_to_px(MPL_TITLE_PAD, dpi);
+    (pad_px * 0.5 + title_px * 0.1).round() as i32
 }

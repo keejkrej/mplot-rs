@@ -131,6 +131,7 @@ pub fn data_bounds(panel: &CompiledPanel) -> DataBounds {
                 {
                     xmin = xmin.min(edge_min);
                     xmax = xmax.max(edge_max);
+                    ymin = ymin.min(0.0);
                     ymax = ymax.max(max_count);
                 }
             }
@@ -411,5 +412,23 @@ mod tests {
         let plan = tick_plan(&panel, view);
         assert!(plan.y_count >= 2);
         assert!(!plan.custom_y);
+    }
+
+    #[test]
+    fn tick_plan_includes_decades_on_log_x() {
+        let panel = sample_panel(true, false);
+        let data = data_bounds(&panel);
+        let view = view_limits(&panel, data);
+        let plan = tick_plan(&panel, view);
+        assert!(plan.x_count >= 2);
+        assert!(!plan.custom_x);
+    }
+
+    #[test]
+    fn data_bounds_respects_log_x() {
+        let panel = sample_panel(true, false);
+        let data = data_bounds(&panel);
+        assert!(data.x.0 > 0.0);
+        assert!(data.x.1 > data.x.0);
     }
 }

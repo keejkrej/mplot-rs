@@ -1,6 +1,9 @@
 //! Golden-image fidelity tests against matplotlib reference PNGs.
 
-use mplot::prelude::{AxesStyle, BoxplotStyle, Color, Figure, GridPos, LineStyle, SaveOptions, Scale, Size};
+use mplot::prelude::{
+    AxesStyle, BarStyle, BoxplotStyle, Colormap, Color, ContourStyle, Figure, FillBetweenStyle,
+    GridPos, HistStyle, ImageStyle, LineStyle, SaveOptions, Scale, Size,
+};
 use mplot::Result;
 use std::path::{Path, PathBuf};
 
@@ -170,6 +173,183 @@ fn render_gallery_boxplot(path: &Path) -> Result<()> {
         .save(path, SaveOptions::default())
 }
 
+fn render_bar_chart(path: &Path) -> Result<()> {
+    let x = [1.0, 2.0, 3.0, 4.0];
+    let heights = [3.0, 7.0, 5.0, 9.0];
+
+    Figure::builder()
+        .panel(GridPos::new(1, 1, 1), |p| {
+            p.bar(
+                &x,
+                &heights,
+                BarStyle::new()
+                    .width(0.8)
+                    .color(Color::hex("#1f77b4")),
+            )
+            .axes(
+                AxesStyle::new()
+                    .title("Bar chart")
+                    .x_label("x")
+                    .y_label("height"),
+            );
+        })
+        .build()?
+        .save(path, SaveOptions::default())
+}
+
+fn render_histogram(path: &Path) -> Result<()> {
+    let data = [1.0, 1.5, 2.0, 2.2, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0];
+
+    Figure::builder()
+        .panel(GridPos::new(1, 1, 1), |p| {
+            p.histogram(
+                &data,
+                HistStyle::new()
+                    .bins(10)
+                    .color(Color::hex("#ff7f0e")),
+            )
+            .axes(
+                AxesStyle::new()
+                    .title("Histogram")
+                    .x_label("value")
+                    .y_label("count"),
+            );
+        })
+        .build()?
+        .save(path, SaveOptions::default())
+}
+
+fn render_fill_between(path: &Path) -> Result<()> {
+    let x = [0.0, 1.0, 2.0, 3.0, 4.0];
+    let y1 = [0.0, 1.0, 2.0, 1.0, 0.0];
+    let y2 = [0.5, 1.5, 2.5, 1.5, 0.5];
+
+    Figure::builder()
+        .panel(GridPos::new(1, 1, 1), |p| {
+            p.fill_between(
+                &x,
+                &y1,
+                &y2,
+                FillBetweenStyle::new()
+                    .color(Color::hex("#2ca02c"))
+                    .alpha(0.3),
+            )
+            .axes(
+                AxesStyle::new()
+                    .title("Fill between")
+                    .x_label("x")
+                    .y_label("y"),
+            );
+        })
+        .build()?
+        .save(path, SaveOptions::default())
+}
+
+fn render_image_viridis(path: &Path) -> Result<()> {
+    let data = vec![
+        0.0, 0.5, 1.0, 0.25, 0.75, 1.0, 0.0, 0.5, 1.0,
+    ];
+
+    Figure::builder()
+        .panel(GridPos::new(1, 1, 1), |p| {
+            p.image(
+                data,
+                3,
+                3,
+                ImageStyle::new()
+                    .extent(0.0, 3.0, 0.0, 3.0)
+                    .colormap(Colormap::Viridis),
+            )
+            .axes(
+                AxesStyle::new()
+                    .title("Image (viridis)")
+                    .x_label("x")
+                    .y_label("y"),
+            );
+        })
+        .build()?
+        .save(path, SaveOptions::default())
+}
+
+fn render_contour(path: &Path) -> Result<()> {
+    let width = 4usize;
+    let height = 4usize;
+    let mut data = Vec::with_capacity(width * height);
+    for row in 0..height {
+        for col in 0..width {
+            data.push(0.25 * (col as f64 + row as f64));
+        }
+    }
+
+    Figure::builder()
+        .panel(GridPos::new(1, 1, 1), |p| {
+            p.contour(
+                data,
+                width,
+                height,
+                ContourStyle::new()
+                    .extent(0.0, 3.0, 0.0, 3.0)
+                    .levels(&[0.25, 0.5, 0.75])
+                    .line_color(Color::hex("#1f77b4")),
+            )
+            .axes(
+                AxesStyle::new()
+                    .title("Contour plot")
+                    .x_label("x")
+                    .y_label("y"),
+            );
+        })
+        .build()?
+        .save(path, SaveOptions::default())
+}
+
+fn render_line_log_x(path: &Path) -> Result<()> {
+    let x = [1.0, 10.0, 100.0, 1000.0];
+    let y = [1.0, 2.0, 3.0, 4.0];
+
+    Figure::builder()
+        .panel(GridPos::new(1, 1, 1), |p| {
+            p.line(
+                &x,
+                &y,
+                LineStyle::new().color(Color::hex("#1f77b4")),
+            )
+            .axes(
+                AxesStyle::new()
+                    .title("Log x line plot")
+                    .x_label("x")
+                    .y_label("y")
+                    .x_scale(Scale::Log),
+            );
+        })
+        .build()?
+        .save(path, SaveOptions::default())
+}
+
+fn render_line_log_log(path: &Path) -> Result<()> {
+    let x = [1.0, 10.0, 100.0];
+    let y = [10.0, 100.0, 1000.0];
+
+    Figure::builder()
+        .panel(GridPos::new(1, 1, 1), |p| {
+            p.line(
+                &x,
+                &y,
+                LineStyle::new().color(Color::hex("#ff7f0e")),
+            )
+            .axes(
+                AxesStyle::new()
+                    .title("Log-log line plot")
+                    .x_label("x")
+                    .y_label("y")
+                    .x_scale(Scale::Log)
+                    .y_scale(Scale::Log),
+            );
+        })
+        .build()?
+        .save(path, SaveOptions::default())
+}
+
 fn compare_pngs(actual: &Path, golden: &Path, max_mean_delta: f64) -> std::result::Result<(), String> {
     let actual_img = image::open(actual).map_err(|err| err.to_string())?;
     let golden_img = image::open(golden).map_err(|err| err.to_string())?;
@@ -247,4 +427,39 @@ fn fidelity_gallery_subplots() {
 #[test]
 fn fidelity_gallery_boxplot() {
     fidelity_case("gallery_boxplot.png", render_gallery_boxplot, 35.0).unwrap();
+}
+
+#[test]
+fn fidelity_bar_chart() {
+    fidelity_case("bar_chart.png", render_bar_chart, 35.0).unwrap();
+}
+
+#[test]
+fn fidelity_histogram() {
+    fidelity_case("histogram.png", render_histogram, 35.0).unwrap();
+}
+
+#[test]
+fn fidelity_fill_between() {
+    fidelity_case("fill_between.png", render_fill_between, 35.0).unwrap();
+}
+
+#[test]
+fn fidelity_image_viridis() {
+    fidelity_case("image_viridis.png", render_image_viridis, 40.0).unwrap();
+}
+
+#[test]
+fn fidelity_contour() {
+    fidelity_case("contour.png", render_contour, 40.0).unwrap();
+}
+
+#[test]
+fn fidelity_line_log_x() {
+    fidelity_case("line_log_x.png", render_line_log_x, 40.0).unwrap();
+}
+
+#[test]
+fn fidelity_line_log_log() {
+    fidelity_case("line_log_log.png", render_line_log_log, 40.0).unwrap();
 }

@@ -201,6 +201,7 @@ fn draw_histogram<DB: DrawingBackend>(chart: &mut Chart<'_, DB>, hist: &HistSeri
         return Ok(());
     }
     let rgb = hist.color.to_rgb();
+    let edge = RGBColor(0, 0, 0);
     for (count, window) in counts.iter().zip(edges.windows(2)) {
         let x0 = window[0];
         let x1 = window[1];
@@ -216,6 +217,18 @@ fn draw_histogram<DB: DrawingBackend>(chart: &mut Chart<'_, DB>, hist: &HistSeri
                 },
             )))
             .map_err(|_| "failed to draw histogram bar")?;
+        chart
+            .draw_series(std::iter::once(PathElement::new(
+                vec![
+                    (x0, y0.min(y1)),
+                    (x1, y0.min(y1)),
+                    (x1, y0.max(y1)),
+                    (x0, y0.max(y1)),
+                    (x0, y0.min(y1)),
+                ],
+                edge.stroke_width(1),
+            )))
+            .map_err(|_| "failed to draw histogram edge")?;
     }
     Ok(())
 }
@@ -228,10 +241,14 @@ fn histogram_bins(data: &[f64], bins: usize) -> (Vec<f64>, Vec<f64>) {
     values.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
     let min = *values.first().unwrap();
     let max = *values.last().unwrap();
-    let span = if (max - min).abs() < 1e-12 { 1.0 } else { max - min };
-    let step = span / bins as f64;
-    let mut edges: Vec<f64> = (0..=bins).map(|i| min + step * i as f64).collect();
-    *edges.last_mut().unwrap() = max + step * 1e-9;
+    if (max - min).abs() < 1e-12 {
+        let edges = vec![min, min + 1.0];
+        return (edges, vec![values.len() as f64]);
+    }
+    let step = (max - min) / bins as f64;
+    let edges: Vec<f64> = (0..=bins)
+        .map(|i| min + step * i as f64)
+        .collect();
     let mut counts = vec![0.0; bins];
     for value in values {
         let mut idx = ((value - min) / step).floor() as usize;
