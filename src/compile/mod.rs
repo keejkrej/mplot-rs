@@ -1,14 +1,18 @@
 use crate::figure::{Figure, SaveOptions};
 use crate::error::Error;
 use crate::panel::PanelSpec;
-use crate::render::model::{CompiledFigure, CompiledPanel, CompiledSeries, LineSeries, BoxplotSeries};
+use crate::colormap::Normalize;
+use crate::render::model::{
+    BarSeries, BoxplotSeries, CompiledFigure, CompiledPanel, CompiledSeries, ContourSeries,
+    FillBetweenSeries, HistSeries, ImageSeries, LineSeries, TextSeries,
+};
 use crate::series::{Scale, Series};
 
 pub fn build(figure: &Figure, options: &SaveOptions) -> Result<CompiledFigure, Error> {
     let panels = figure
         .panels()
         .iter()
-        .map(|panel| compile_panel(panel))
+        .map(compile_panel)
         .collect();
 
     Ok(CompiledFigure {
@@ -74,6 +78,75 @@ fn compile_series(series: &Series) -> CompiledSeries {
             width: style.width_value(),
             no_fliers: style.no_fliers_value(),
             patch_artist: style.patch_artist_value(),
+        }),
+        Series::Bar { x, heights, style } => CompiledSeries::Bar(BarSeries {
+            x: x.clone(),
+            heights: heights.clone(),
+            color: style.color_value(),
+            width: style.width_value(),
+            baseline: style.baseline_value(),
+            label: style.label_value().unwrap_or("").to_string(),
+        }),
+        Series::Histogram { data, style } => CompiledSeries::Histogram(HistSeries {
+            data: data.clone(),
+            bins: style.bins_value(),
+            color: style.color_value(),
+            label: style.label_value().unwrap_or("").to_string(),
+        }),
+        Series::FillBetween { x, y1, y2, style } => CompiledSeries::FillBetween(FillBetweenSeries {
+            x: x.clone(),
+            y1: y1.clone(),
+            y2: y2.clone(),
+            color: style.color_value().with_alpha(style.alpha_value()),
+            alpha: style.alpha_value(),
+            label: style.label_value().unwrap_or("").to_string(),
+        }),
+        Series::Image {
+            data,
+            width,
+            height,
+            style,
+        } => {
+            let normalize = style
+                .normalize_value()
+                .unwrap_or_else(|| Normalize::of_slice(data));
+            CompiledSeries::Image(ImageSeries {
+                data: data.clone(),
+                width: *width,
+                height: *height,
+                extent: style.extent_value(),
+                colormap: style.colormap_value(),
+                normalize,
+                show_colorbar: style.show_colorbar_value(),
+            })
+        }
+        Series::Contour {
+            data,
+            width,
+            height,
+            style,
+        } => {
+            let normalize = style
+                .normalize_value()
+                .unwrap_or_else(|| Normalize::of_slice(data));
+            CompiledSeries::Contour(ContourSeries {
+                data: data.clone(),
+                width: *width,
+                height: *height,
+                extent: style.extent_value(),
+                levels: style.levels_value().to_vec(),
+                line_color: style.line_color_value(),
+                colormap: style.colormap_value(),
+                normalize,
+                show_colorbar: style.show_colorbar_value(),
+            })
+        }
+        Series::Text { x, y, text, style } => CompiledSeries::Text(TextSeries {
+            x: *x,
+            y: *y,
+            text: text.clone(),
+            color: style.color_value(),
+            fontsize: style.fontsize_value(),
         }),
     }
 }

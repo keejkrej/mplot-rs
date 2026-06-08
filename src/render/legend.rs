@@ -17,6 +17,7 @@ pub struct LegendEntry {
     pub color: MplotColor,
     pub dash: LineDash,
     pub width: f64,
+    pub patch: bool,
 }
 
 const LEGEND_INSET_FRAC: f64 = 0.02;
@@ -28,7 +29,30 @@ pub fn collect_entries(series: &[CompiledSeries]) -> Vec<LegendEntry> {
     series
         .iter()
         .filter_map(|item| match item {
-            CompiledSeries::Line(curve) if !curve.label.is_empty() => Some(entry_from_line(curve)),
+            CompiledSeries::Line(curve) if !curve.label.is_empty() => {
+                Some(entry_from_line(curve))
+            }
+            CompiledSeries::Bar(bar) if !bar.label.is_empty() => Some(LegendEntry {
+                label: bar.label.clone(),
+                color: bar.color,
+                dash: LineDash::Solid,
+                width: 1.0,
+                patch: true,
+            }),
+            CompiledSeries::Histogram(hist) if !hist.label.is_empty() => Some(LegendEntry {
+                label: hist.label.clone(),
+                color: hist.color,
+                dash: LineDash::Solid,
+                width: 1.0,
+                patch: true,
+            }),
+            CompiledSeries::FillBetween(fill) if !fill.label.is_empty() => Some(LegendEntry {
+                label: fill.label.clone(),
+                color: fill.color,
+                dash: LineDash::Solid,
+                width: 1.0,
+                patch: true,
+            }),
             _ => None,
         })
         .collect()
@@ -40,6 +64,7 @@ fn entry_from_line(curve: &LineSeries) -> LegendEntry {
         color: curve.color,
         dash: curve.dash,
         width: curve.width,
+        patch: false,
     }
 }
 
@@ -98,7 +123,11 @@ pub fn draw_legend(
         let row_center = frame_top - pad - row_h * (index as f64 + 0.5);
         let line_x0 = frame_left + pad;
         let line_x1 = line_x0 + line_len;
-        draw_legend_line(chart, entry, line_x0, line_x1, row_center)?;
+        if entry.patch {
+            draw_legend_patch(chart, entry, line_x0, line_x1, row_center)?;
+        } else {
+            draw_legend_line(chart, entry, line_x0, line_x1, row_center)?;
+        }
         let text_x = line_x1 + pad;
         let label = entry.label.clone();
         chart
@@ -110,6 +139,28 @@ pub fn draw_legend(
             .map_err(|_| "failed to draw legend label")?;
     }
 
+    Ok(())
+}
+
+fn draw_legend_patch(
+    chart: &mut Chart<'_>,
+    entry: &LegendEntry,
+    x0: f64,
+    x1: f64,
+    y: f64,
+) -> Result<(), &'static str> {
+    let rgb = entry.color.to_rgb();
+    let half = (x1 - x0) * 0.15;
+    chart
+        .draw_series(std::iter::once(Rectangle::new(
+            [(x0, y - half), (x1, y + half)],
+            ShapeStyle {
+                color: rgb.to_rgba(),
+                filled: true,
+                stroke_width: 1,
+            },
+        )))
+        .map_err(|_| "failed to draw legend patch")?;
     Ok(())
 }
 
@@ -175,5 +226,6 @@ mod tests {
         let entries = collect_entries(&series);
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].label, "A");
+        assert!(!entries[0].patch);
     }
 }

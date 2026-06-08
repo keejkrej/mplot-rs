@@ -39,6 +39,7 @@ mod as_vector;
 mod auxiliary;
 mod axes;
 mod color;
+mod colormap;
 mod compile;
 mod constants;
 mod error;
@@ -51,10 +52,14 @@ mod ticker;
 
 pub mod prelude {
     pub use crate::color::Color;
+    pub use crate::colormap::{Colormap, Normalize};
     pub use crate::error::{Error, Result};
     pub use crate::figure::{Figure, FigureBuilder, SaveOptions, Size};
     pub use crate::panel::{AxesStyle, GridPos, LegendStyle, TickLabels};
-    pub use crate::series::{BoxplotStyle, LineDash, LineStyle, Marker, Scale, Series};
+    pub use crate::series::{
+        BarStyle, BoxplotStyle, ContourStyle, FillBetweenStyle, HistStyle, ImageStyle, LineDash,
+        LineStyle, Marker, Scale, Series, TextStyle,
+    };
 }
 
 pub use as_vector::*;

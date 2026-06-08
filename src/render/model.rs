@@ -1,4 +1,6 @@
+use crate::colormap::{Colormap, Normalize};
 use crate::panel::TickLabels;
+use crate::color::Color;
 use crate::series::{LineDash, Marker};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -6,7 +8,7 @@ pub struct LineSeries {
     pub x: Vec<f64>,
     pub y: Vec<f64>,
     pub label: String,
-    pub color: crate::color::Color,
+    pub color: Color,
     pub dash: LineDash,
     pub marker: Marker,
     pub width: f64,
@@ -24,9 +26,76 @@ pub struct BoxplotSeries {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub struct BarSeries {
+    pub x: Vec<f64>,
+    pub heights: Vec<f64>,
+    pub color: Color,
+    pub width: f64,
+    pub baseline: f64,
+    pub label: String,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct HistSeries {
+    pub data: Vec<f64>,
+    pub bins: usize,
+    pub color: Color,
+    pub label: String,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct FillBetweenSeries {
+    pub x: Vec<f64>,
+    pub y1: Vec<f64>,
+    pub y2: Vec<f64>,
+    pub color: Color,
+    pub alpha: f64,
+    pub label: String,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ImageSeries {
+    pub data: Vec<f64>,
+    pub width: usize,
+    pub height: usize,
+    pub extent: (f64, f64, f64, f64),
+    pub colormap: Colormap,
+    pub normalize: Normalize,
+    pub show_colorbar: bool,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ContourSeries {
+    pub data: Vec<f64>,
+    pub width: usize,
+    pub height: usize,
+    pub extent: (f64, f64, f64, f64),
+    pub levels: Vec<f64>,
+    pub line_color: Color,
+    pub colormap: Colormap,
+    pub normalize: Normalize,
+    pub show_colorbar: bool,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct TextSeries {
+    pub x: f64,
+    pub y: f64,
+    pub text: String,
+    pub color: Color,
+    pub fontsize: f64,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub enum CompiledSeries {
     Line(LineSeries),
     Boxplot(BoxplotSeries),
+    Bar(BarSeries),
+    Histogram(HistSeries),
+    FillBetween(FillBetweenSeries),
+    Image(ImageSeries),
+    Contour(ContourSeries),
+    Text(TextSeries),
 }
 
 #[derive(Clone, Debug, PartialEq)]

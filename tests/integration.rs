@@ -121,3 +121,125 @@ fn test_horizontal_boxplot() -> Result<()> {
     assert!(metadata.len() > 1_000);
     Ok(())
 }
+
+#[test]
+fn test_bar() -> Result<()> {
+    std::fs::create_dir_all(OUT_DIR).ok();
+
+    let x = [1.0, 2.0, 3.0, 4.0];
+    let heights = [3.0, 7.0, 5.0, 9.0];
+
+    let figure = Figure::builder()
+        .panel(GridPos::new(1, 1, 1), |p| {
+            p.bar(
+                &x,
+                &heights,
+                BarStyle::new()
+                    .color(Color::TABLEAU[0])
+                    .label("counts"),
+            )
+            .axes(
+                AxesStyle::new()
+                    .title("bar chart")
+                    .legend(LegendStyle::show()),
+            );
+        })
+        .build()?;
+
+    let path = Path::new(OUT_DIR).join("test_bar.png");
+    figure.save(&path, SaveOptions::default())?;
+
+    let metadata = std::fs::metadata(path).map_err(|_| Error::Io("output missing".into()))?;
+    assert!(metadata.len() > 1_000);
+    Ok(())
+}
+
+#[test]
+fn test_histogram() -> Result<()> {
+    std::fs::create_dir_all(OUT_DIR).ok();
+
+    let data = [1.0, 1.5, 2.0, 2.2, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0];
+
+    let figure = Figure::builder()
+        .panel(GridPos::new(1, 1, 1), |p| {
+            p.histogram(
+                &data,
+                HistStyle::new()
+                    .bins(5)
+                    .color(Color::TABLEAU[1])
+                    .label("samples"),
+            )
+            .axes(AxesStyle::new().title("histogram"));
+        })
+        .build()?;
+
+    let path = Path::new(OUT_DIR).join("test_histogram.png");
+    figure.save(&path, SaveOptions::default())?;
+
+    let metadata = std::fs::metadata(path).map_err(|_| Error::Io("output missing".into()))?;
+    assert!(metadata.len() > 1_000);
+    Ok(())
+}
+
+#[test]
+fn test_fill_between() -> Result<()> {
+    std::fs::create_dir_all(OUT_DIR).ok();
+
+    let x = [0.0, 1.0, 2.0, 3.0, 4.0];
+    let y1 = [0.0, 1.0, 2.0, 1.0, 0.0];
+    let y2 = [0.5, 1.5, 2.5, 1.5, 0.5];
+
+    let figure = Figure::builder()
+        .panel(GridPos::new(1, 1, 1), |p| {
+            p.fill_between(
+                &x,
+                &y1,
+                &y2,
+                FillBetweenStyle::new()
+                    .color(Color::TABLEAU[2])
+                    .alpha(0.4)
+                    .label("band"),
+            )
+            .axes(
+                AxesStyle::new()
+                    .title("fill between")
+                    .legend(LegendStyle::show()),
+            );
+        })
+        .build()?;
+
+    let path = Path::new(OUT_DIR).join("test_fill_between.png");
+    figure.save(&path, SaveOptions::default())?;
+
+    let metadata = std::fs::metadata(path).map_err(|_| Error::Io("output missing".into()))?;
+    assert!(metadata.len() > 1_000);
+    Ok(())
+}
+
+#[test]
+fn test_image() -> Result<()> {
+    std::fs::create_dir_all(OUT_DIR).ok();
+
+    let data = vec![0.0, 0.5, 1.0, 0.25, 0.75, 1.0, 0.0, 0.5, 1.0];
+    let figure = Figure::builder()
+        .panel(GridPos::new(1, 1, 1), |p| {
+            p.image(
+                data,
+                3,
+                3,
+                ImageStyle::new()
+                    .extent(0.0, 3.0, 0.0, 3.0)
+                    .colormap(Colormap::Viridis)
+                    .colorbar(true),
+            )
+            .axes(AxesStyle::new().title("image"));
+        })
+        .build()?;
+
+    let path = Path::new(OUT_DIR).join("test_image.png");
+    figure.save(&path, SaveOptions::default())?;
+
+    let metadata = std::fs::metadata(path).map_err(|_| Error::Io("output missing".into()))?;
+    assert!(metadata.len() > 1_000);
+    Ok(())
+}

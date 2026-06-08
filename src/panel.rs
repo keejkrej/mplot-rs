@@ -252,6 +252,76 @@ impl<'a> PanelBuilder<'a> {
         self
     }
 
+    pub fn bar(&mut self, x: &[f64], heights: &[f64], style: crate::series::BarStyle) -> &mut Self {
+        self.spec
+            .series
+            .push(crate::series::Series::bar(x, heights, style));
+        self
+    }
+
+    pub fn histogram(&mut self, data: &[f64], style: crate::series::HistStyle) -> &mut Self {
+        self.spec
+            .series
+            .push(crate::series::Series::histogram(data, style));
+        self
+    }
+
+    pub fn fill_between<'b, T, U>(
+        &mut self,
+        x: &'b T,
+        y1: &'b T,
+        y2: &'b T,
+        style: crate::series::FillBetweenStyle,
+    ) -> &mut Self
+    where
+        T: AsVector<'b, U>,
+        U: 'b + Num + NumCast + Copy,
+    {
+        self.spec
+            .series
+            .push(crate::series::Series::fill_between(x, y1, y2, style));
+        self
+    }
+
+    pub fn image(
+        &mut self,
+        data: Vec<f64>,
+        width: usize,
+        height: usize,
+        style: crate::series::ImageStyle,
+    ) -> &mut Self {
+        self.spec
+            .series
+            .push(crate::series::Series::image(data, width, height, style));
+        self
+    }
+
+    pub fn contour(
+        &mut self,
+        data: Vec<f64>,
+        width: usize,
+        height: usize,
+        style: crate::series::ContourStyle,
+    ) -> &mut Self {
+        self.spec
+            .series
+            .push(crate::series::Series::contour(data, width, height, style));
+        self
+    }
+
+    pub fn text(
+        &mut self,
+        x: f64,
+        y: f64,
+        text: impl Into<String>,
+        style: crate::series::TextStyle,
+    ) -> &mut Self {
+        self.spec
+            .series
+            .push(crate::series::Series::text(x, y, text, style));
+        self
+    }
+
     pub fn series(&mut self, series: crate::series::Series) -> &mut Self {
         self.spec.series.push(series);
         self

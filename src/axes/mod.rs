@@ -110,6 +110,80 @@ pub fn data_bounds(panel: &CompiledPanel) -> DataBounds {
                     }
                 }
             }
+            CompiledSeries::Bar(bar) => {
+                let half = bar.width / 2.0;
+                for (x, height) in bar.x.iter().zip(bar.heights.iter()) {
+                    xmin = xmin.min(*x - half);
+                    xmax = xmax.max(*x + half);
+                    if y_scale.usable(bar.baseline) {
+                        ymin = ymin.min(bar.baseline);
+                        ymax = ymax.max(bar.baseline);
+                    }
+                    if y_scale.usable(*height) {
+                        ymin = ymin.min(*height);
+                        ymax = ymax.max(*height);
+                    }
+                }
+            }
+            CompiledSeries::Histogram(hist) => {
+                if let Some(((edge_min, edge_max), max_count)) =
+                    histogram_bounds(&hist.data, hist.bins)
+                {
+                    xmin = xmin.min(edge_min);
+                    xmax = xmax.max(edge_max);
+                    ymax = ymax.max(max_count);
+                }
+            }
+            CompiledSeries::FillBetween(fill) => {
+                for (x, y) in fill.x.iter().zip(fill.y1.iter()) {
+                    if x_scale.usable(*x) {
+                        xmin = xmin.min(*x);
+                        xmax = xmax.max(*x);
+                    }
+                    if y_scale.usable(*y) {
+                        ymin = ymin.min(*y);
+                        ymax = ymax.max(*y);
+                    }
+                }
+                for y in &fill.y2 {
+                    if y_scale.usable(*y) {
+                        ymin = ymin.min(*y);
+                        ymax = ymax.max(*y);
+                    }
+                }
+            }
+            CompiledSeries::Image(image) => {
+                let (x0, x1, y0, y1) = image.extent;
+                if x_scale.usable(x0) && x_scale.usable(x1) {
+                    xmin = xmin.min(x0).min(x1);
+                    xmax = xmax.max(x0).max(x1);
+                }
+                if y_scale.usable(y0) && y_scale.usable(y1) {
+                    ymin = ymin.min(y0).min(y1);
+                    ymax = ymax.max(y0).max(y1);
+                }
+            }
+            CompiledSeries::Contour(contour) => {
+                let (x0, x1, y0, y1) = contour.extent;
+                if x_scale.usable(x0) && x_scale.usable(x1) {
+                    xmin = xmin.min(x0).min(x1);
+                    xmax = xmax.max(x0).max(x1);
+                }
+                if y_scale.usable(y0) && y_scale.usable(y1) {
+                    ymin = ymin.min(y0).min(y1);
+                    ymax = ymax.max(y0).max(y1);
+                }
+            }
+            CompiledSeries::Text(text) => {
+                if x_scale.usable(text.x) {
+                    xmin = xmin.min(text.x);
+                    xmax = xmax.max(text.x);
+                }
+                if y_scale.usable(text.y) {
+                    ymin = ymin.min(text.y);
+                    ymax = ymax.max(text.y);
+                }
+            }
         }
     }
 
@@ -254,6 +328,28 @@ pub fn format_axis_tick(scale: AxisScale, custom: bool, axis_value: f64) -> Stri
     } else {
         format_linear(axis_value)
     }
+}
+
+fn histogram_bounds(data: &[f64], bins: usize) -> Option<((f64, f64), f64)> {
+    let mut values: Vec<f64> = data.iter().copied().filter(|v| v.is_finite()).collect();
+    if values.is_empty() {
+        return None;
+    }
+    values.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    let min = *values.first()?;
+    let max = *values.last()?;
+    let span = if (max - min).abs() < 1e-12 { 1.0 } else { max - min };
+    let step = span / bins as f64;
+    let mut counts = vec![0.0; bins];
+    for value in values {
+        let mut idx = ((value - min) / step).floor() as usize;
+        if idx >= bins {
+            idx = bins - 1;
+        }
+        counts[idx] += 1.0;
+    }
+    let max_count = counts.iter().copied().fold(0.0, f64::max);
+    Some(((min, max + step * 1e-9), max_count))
 }
 
 #[cfg(test)]

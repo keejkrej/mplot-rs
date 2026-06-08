@@ -43,3 +43,7 @@ path = "examples/boxplot_log.rs"
 [[example]]
 name = "gallery"
 path = "examples/gallery.rs"
+
+[[example]]
+name = "bar_histogram"
+path = "examples/bar_histogram.rs"

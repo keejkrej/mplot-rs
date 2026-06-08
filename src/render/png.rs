@@ -4,22 +4,20 @@ use plotters::backend::BitMapBackend;
 use plotters::chart::ChartBuilder;
 use plotters::coord::types::RangedCoordf64;
 use plotters::coord::Shift;
-use plotters::element::{Circle, PathElement, Rectangle};
+use plotters::element::PathElement;
 use plotters::prelude::*;
-use plotters::series::LineSeries as PlotLineSeries;
-use plotters::style::{Color, RGBColor, ShapeStyle};
+use plotters::style::{RGBColor, ShapeStyle};
 
 use crate::axes::{data_bounds, format_axis_tick, tick_plan, view_limits, PanelScales};
+use crate::colormap::{Colormap, Normalize};
 use crate::render::layout::{pad_inches_px, subplot_panels};
 use crate::render::legend::{collect_entries, draw_legend};
-use crate::render::model::{BoxplotSeries, CompiledFigure, CompiledPanel, CompiledSeries};
+use crate::render::model::{CompiledFigure, CompiledPanel, CompiledSeries};
 use crate::render::mpl_style::{
-    pt_to_px, tick_size_px, CHART_MARGIN_PX, LABEL_AREA_BOTTOM, LABEL_AREA_LEFT, MPL_BOX_EDGE,
-    MPL_BOX_FACE, MPL_BOX_LINE_WIDTH, MPL_FLIER_SIZE, MPL_FONT, MPL_GRID, MPL_MEDIAN,
-    MPL_MEDIAN_LINE_WIDTH, MPL_MARKER_SIZE, MPL_SPINE, MPL_WHISKER_LINE_WIDTH,
+    pt_to_px, tick_size_px, CHART_MARGIN_PX, LABEL_AREA_BOTTOM, LABEL_AREA_LEFT, MPL_FONT,
+    MPL_GRID, MPL_SPINE,
 };
-use crate::render::scene::{box_positions, box_stats, default_box_width};
-use crate::series::{LineDash, Marker};
+use crate::render::primitives::{draw_colorbar, draw_series};
 
 type Chart<'a> = ChartContext<'a, BitMapBackend<'a>, Cartesian2d<RangedCoordf64, RangedCoordf64>>;
 
@@ -177,11 +175,22 @@ fn draw_panel_in_area<'a>(
     mesh.draw().map_err(|_| "failed to draw mesh")?;
     draw_extra_spines(&mut chart, xmin, xmax, ymin, ymax, spine)?;
 
+    let mut colorbar: Option<(Normalize, Colormap)> = None;
     for series in &panel.series {
+        draw_series(&mut chart, series, scales, tick_px)?;
         match series {
-            CompiledSeries::Line(curve) => draw_curve(&mut chart, curve, scales)?,
-            CompiledSeries::Boxplot(boxes) => draw_boxplot(&mut chart, boxes, scales)?,
+            CompiledSeries::Image(image) if image.show_colorbar => {
+                colorbar = Some((image.normalize, image.colormap));
+            }
+            CompiledSeries::Contour(contour) if contour.show_colorbar => {
+                colorbar = Some((contour.normalize, contour.colormap));
+            }
+            _ => {}
         }
+    }
+
+    if let Some((normalize, colormap)) = colorbar {
+        draw_colorbar(&mut chart, normalize, colormap, xmin, xmax, ymin, ymax)?;
     }
 
     if panel.show_legend {
@@ -215,367 +224,5 @@ fn draw_extra_spines(
             PathElement::new(vec![(xmax, ymin), (xmax, ymax)], style),
         ])
         .map_err(|_| "failed to draw spines")?;
-    Ok(())
-}
-
-fn draw_curve(
-    chart: &mut Chart<'_>,
-    curve: &crate::render::model::LineSeries,
-    scales: PanelScales,
-) -> Result<(), &'static str> {
-    if curve.x.len() != curve.y.len() || curve.x.is_empty() {
-        return Ok(());
-    }
-    let points: Vec<(f64, f64)> = curve
-        .x
-        .iter()
-        .zip(curve.y.iter())
-        .filter(|(x, y)| scales.x.usable(**x) && scales.y.usable(**y))
-        .map(|(x, y)| scales.map_xy(*x, *y))
-        .collect();
-    if points.is_empty() {
-        return Ok(());
-    }
-
-    let rgb = curve.color.to_rgb();
-    let width = if curve.width > 0.0 {
-        curve.width
-    } else {
-        crate::render::mpl_style::MPL_LINE_WIDTH
-    };
-    let stroke_width = width.round().max(1.0) as u32;
-    let style = ShapeStyle {
-        color: rgb.to_rgba(),
-        filled: false,
-        stroke_width,
-    };
-
-    if points.len() >= 2 {
-        match curve.dash {
-            LineDash::Dashed => chart
-                .draw_series(DashedLineSeries::new(points.clone(), 5, 5, style))
-                .map_err(|_| "failed to draw curve")?,
-            LineDash::DashDot => chart
-                .draw_series(DashedLineSeries::new(points.clone(), 8, 4, style))
-                .map_err(|_| "failed to draw curve")?,
-            LineDash::Dotted => chart
-                .draw_series(DashedLineSeries::new(points.clone(), 1, 3, style))
-                .map_err(|_| "failed to draw curve")?,
-            LineDash::Solid => chart
-                .draw_series(PlotLineSeries::new(points.clone(), style))
-                .map_err(|_| "failed to draw curve")?,
-        };
-    }
-
-    draw_markers(chart, &points, curve.marker, rgb)?;
-    Ok(())
-}
-
-fn draw_markers(
-    chart: &mut Chart<'_>,
-    points: &[(f64, f64)],
-    marker: Marker,
-    color: RGBColor,
-) -> Result<(), &'static str> {
-    if matches!(marker, Marker::None) {
-        return Ok(());
-    }
-
-    let size = (MPL_MARKER_SIZE / 2.0).round().max(2.0) as i32;
-    let style = ShapeStyle {
-        color: color.to_rgba(),
-        filled: false,
-        stroke_width: 1,
-    };
-
-    for &(x, y) in points {
-        match marker {
-            Marker::None => {}
-            Marker::Circle => {
-                chart
-                    .draw_series(std::iter::once(Circle::new((x, y), size, style)))
-                    .map_err(|_| "failed to draw marker")?;
-            }
-            Marker::Square => {
-                let half = size as f64;
-                chart
-                    .draw_series(std::iter::once(PathElement::new(
-                        vec![
-                            (x - half, y - half),
-                            (x + half, y - half),
-                            (x + half, y + half),
-                            (x - half, y + half),
-                            (x - half, y - half),
-                        ],
-                        style,
-                    )))
-                    .map_err(|_| "failed to draw marker")?;
-            }
-            Marker::Cross => {
-                let half = size as f64;
-                chart
-                    .draw_series([
-                        PathElement::new(vec![(x - half, y - half), (x + half, y + half)], style),
-                        PathElement::new(vec![(x - half, y + half), (x + half, y - half)], style),
-                    ])
-                    .map_err(|_| "failed to draw marker")?;
-            }
-        }
-    }
-    Ok(())
-}
-
-fn draw_boxplot(
-    chart: &mut Chart<'_>,
-    boxes: &BoxplotSeries,
-    scales: PanelScales,
-) -> Result<(), &'static str> {
-    let whisker = boxes.whisker;
-    let positions = box_positions(boxes);
-    let width = boxes.width.unwrap_or_else(|| default_box_width(&positions));
-    let cap_width = 0.5 * width;
-    let edge = RGBColor(MPL_BOX_EDGE.0, MPL_BOX_EDGE.1, MPL_BOX_EDGE.2);
-    let fill = RGBColor(MPL_BOX_FACE.0, MPL_BOX_FACE.1, MPL_BOX_FACE.2);
-    let median_color = RGBColor(MPL_MEDIAN.0, MPL_MEDIAN.1, MPL_MEDIAN.2);
-    let flier_size = (MPL_FLIER_SIZE / 2.0).round().max(2.0) as i32;
-
-    for (idx, group) in boxes.groups.iter().enumerate() {
-        let pos = positions.get(idx).copied().unwrap_or((idx + 1) as f64);
-        let Some(stats) = box_stats(group, whisker) else {
-            continue;
-        };
-
-        let edge_style = ShapeStyle {
-            color: edge.to_rgba(),
-            filled: false,
-            stroke_width: MPL_BOX_LINE_WIDTH.round() as u32,
-        };
-
-        if boxes.horizontal {
-            draw_horizontal_box(
-                chart,
-                scales,
-                pos,
-                width,
-                cap_width,
-                &stats,
-                boxes,
-                edge,
-                fill,
-                median_color,
-                edge_style,
-                flier_size,
-            )?;
-        } else {
-            draw_vertical_box(
-                chart,
-                scales,
-                pos,
-                width,
-                cap_width,
-                &stats,
-                boxes,
-                edge,
-                fill,
-                median_color,
-                edge_style,
-                flier_size,
-            )?;
-        }
-    }
-    Ok(())
-}
-
-fn draw_vertical_box(
-    chart: &mut Chart<'_>,
-    scales: PanelScales,
-    pos: f64,
-    width: f64,
-    cap_width: f64,
-    stats: &crate::render::scene::BoxStats,
-    boxes: &BoxplotSeries,
-    edge: RGBColor,
-    fill: RGBColor,
-    median_color: RGBColor,
-    edge_style: ShapeStyle,
-    flier_size: i32,
-) -> Result<(), &'static str> {
-    let y_low = scales.y.data_to_axis(stats.whislo);
-    let y_q1 = scales.y.data_to_axis(stats.q1);
-    let y_med = scales.y.data_to_axis(stats.med);
-    let y_q3 = scales.y.data_to_axis(stats.q3);
-    let y_high = scales.y.data_to_axis(stats.whishi);
-    let x0 = pos - width / 2.0;
-    let x1 = pos + width / 2.0;
-    let cap_x0 = pos - cap_width / 2.0;
-    let cap_x1 = pos + cap_width / 2.0;
-
-    draw_box_rect(chart, boxes.patch_artist, x0, x1, y_q1, y_q3, fill, edge_style)?;
-
-    chart
-        .draw_series(std::iter::once(PathElement::new(
-            vec![(x0, y_med), (x1, y_med)],
-            median_color.stroke_width(MPL_MEDIAN_LINE_WIDTH.round() as u32),
-        )))
-        .map_err(|_| "failed to draw median")?;
-
-    let whisker_style = edge.stroke_width(MPL_WHISKER_LINE_WIDTH.round() as u32);
-    chart
-        .draw_series(std::iter::once(PathElement::new(
-            vec![(pos, y_low), (pos, y_q1)],
-            whisker_style,
-        )))
-        .map_err(|_| "failed to draw lower whisker")?;
-    chart
-        .draw_series(std::iter::once(PathElement::new(
-            vec![(pos, y_q3), (pos, y_high)],
-            whisker_style,
-        )))
-        .map_err(|_| "failed to draw upper whisker")?;
-    chart
-        .draw_series(std::iter::once(PathElement::new(
-            vec![(cap_x0, y_low), (cap_x1, y_low)],
-            whisker_style,
-        )))
-        .map_err(|_| "failed to draw lower cap")?;
-    chart
-        .draw_series(std::iter::once(PathElement::new(
-            vec![(cap_x0, y_high), (cap_x1, y_high)],
-            whisker_style,
-        )))
-        .map_err(|_| "failed to draw upper cap")?;
-
-    if !boxes.no_fliers {
-        for flier in &stats.fliers {
-            let y = scales.y.data_to_axis(*flier);
-            chart
-                .draw_series(std::iter::once(Circle::new(
-                    (pos, y),
-                    flier_size,
-                    ShapeStyle {
-                        color: edge.to_rgba(),
-                        filled: false,
-                        stroke_width: 1,
-                    },
-                )))
-                .map_err(|_| "failed to draw flier")?;
-        }
-    }
-    Ok(())
-}
-
-fn draw_horizontal_box(
-    chart: &mut Chart<'_>,
-    scales: PanelScales,
-    pos: f64,
-    width: f64,
-    cap_width: f64,
-    stats: &crate::render::scene::BoxStats,
-    boxes: &BoxplotSeries,
-    edge: RGBColor,
-    fill: RGBColor,
-    median_color: RGBColor,
-    edge_style: ShapeStyle,
-    flier_size: i32,
-) -> Result<(), &'static str> {
-    let x_low = scales.x.data_to_axis(stats.whislo);
-    let x_q1 = scales.x.data_to_axis(stats.q1);
-    let x_med = scales.x.data_to_axis(stats.med);
-    let x_q3 = scales.x.data_to_axis(stats.q3);
-    let x_high = scales.x.data_to_axis(stats.whishi);
-    let y0 = pos - width / 2.0;
-    let y1 = pos + width / 2.0;
-    let cap_y0 = pos - cap_width / 2.0;
-    let cap_y1 = pos + cap_width / 2.0;
-
-    draw_box_rect(chart, boxes.patch_artist, x_q1, x_q3, y0, y1, fill, edge_style)?;
-
-    chart
-        .draw_series(std::iter::once(PathElement::new(
-            vec![(x_med, y0), (x_med, y1)],
-            median_color.stroke_width(MPL_MEDIAN_LINE_WIDTH.round() as u32),
-        )))
-        .map_err(|_| "failed to draw median")?;
-
-    let whisker_style = edge.stroke_width(MPL_WHISKER_LINE_WIDTH.round() as u32);
-    chart
-        .draw_series(std::iter::once(PathElement::new(
-            vec![(x_low, pos), (x_q1, pos)],
-            whisker_style,
-        )))
-        .map_err(|_| "failed to draw lower whisker")?;
-    chart
-        .draw_series(std::iter::once(PathElement::new(
-            vec![(x_q3, pos), (x_high, pos)],
-            whisker_style,
-        )))
-        .map_err(|_| "failed to draw upper whisker")?;
-    chart
-        .draw_series(std::iter::once(PathElement::new(
-            vec![(x_low, cap_y0), (x_low, cap_y1)],
-            whisker_style,
-        )))
-        .map_err(|_| "failed to draw lower cap")?;
-    chart
-        .draw_series(std::iter::once(PathElement::new(
-            vec![(x_high, cap_y0), (x_high, cap_y1)],
-            whisker_style,
-        )))
-        .map_err(|_| "failed to draw upper cap")?;
-
-    if !boxes.no_fliers {
-        for flier in &stats.fliers {
-            let x = scales.x.data_to_axis(*flier);
-            chart
-                .draw_series(std::iter::once(Circle::new(
-                    (x, pos),
-                    flier_size,
-                    ShapeStyle {
-                        color: edge.to_rgba(),
-                        filled: false,
-                        stroke_width: 1,
-                    },
-                )))
-                .map_err(|_| "failed to draw flier")?;
-        }
-    }
-    Ok(())
-}
-
-fn draw_box_rect(
-    chart: &mut Chart<'_>,
-    patch_artist: bool,
-    x0: f64,
-    x1: f64,
-    y0: f64,
-    y1: f64,
-    fill: RGBColor,
-    edge_style: ShapeStyle,
-) -> Result<(), &'static str> {
-    if patch_artist {
-        chart
-            .draw_series(std::iter::once(Rectangle::new(
-                [(x0, y0), (x1, y1)],
-                ShapeStyle {
-                    color: fill.to_rgba(),
-                    filled: true,
-                    stroke_width: 1,
-                },
-            )))
-            .map_err(|_| "failed to draw box")?;
-        chart
-            .draw_series(std::iter::once(PathElement::new(
-                vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1), (x0, y0)],
-                edge_style,
-            )))
-            .map_err(|_| "failed to draw box edge")?;
-    } else {
-        chart
-            .draw_series(std::iter::once(PathElement::new(
-                vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1), (x0, y0)],
-                edge_style,
-            )))
-            .map_err(|_| "failed to draw box")?;
-    }
     Ok(())
 }
