@@ -82,15 +82,30 @@ pub fn data_bounds(panel: &CompiledPanel) -> DataBounds {
             }
             CompiledSeries::Boxplot(boxes) => {
                 let positions = box_positions(boxes);
-                for pos in &positions {
-                    xmin = xmin.min(*pos - 0.5);
-                    xmax = xmax.max(*pos + 0.5);
-                }
-                for group in &boxes.groups {
-                    for value in group {
-                        if y_scale.usable(*value) {
-                            ymin = ymin.min(*value);
-                            ymax = ymax.max(*value);
+                if boxes.horizontal {
+                    for pos in &positions {
+                        ymin = ymin.min(*pos - 0.5);
+                        ymax = ymax.max(*pos + 0.5);
+                    }
+                    for group in &boxes.groups {
+                        for value in group {
+                            if x_scale.usable(*value) {
+                                xmin = xmin.min(*value);
+                                xmax = xmax.max(*value);
+                            }
+                        }
+                    }
+                } else {
+                    for pos in &positions {
+                        xmin = xmin.min(*pos - 0.5);
+                        xmax = xmax.max(*pos + 0.5);
+                    }
+                    for group in &boxes.groups {
+                        for value in group {
+                            if y_scale.usable(*value) {
+                                ymin = ymin.min(*value);
+                                ymax = ymax.max(*value);
+                            }
                         }
                     }
                 }
@@ -264,12 +279,14 @@ mod tests {
             show_grid: false,
             ticks_x: None,
             ticks_y: None,
+            show_legend: false,
             series: vec![CompiledSeries::Line(LineSeries {
                 x: vec![1.0, 10.0, 100.0],
                 y: vec![10.0, 100.0, 1000.0],
                 label: String::new(),
                 color: Color::TABLEAU[0],
                 dash: LineDash::Solid,
+                marker: crate::series::Marker::None,
                 width: 1.5,
             })],
         }

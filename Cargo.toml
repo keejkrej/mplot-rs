@@ -17,6 +17,10 @@ approx = "0.5"
 image = "0.25"
 
 [[example]]
+name = "legend_lines"
+path = "examples/legend_lines.rs"
+
+[[example]]
 name = "line_panel"
 path = "examples/line_panel.rs"
 

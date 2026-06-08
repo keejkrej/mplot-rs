@@ -60,3 +60,64 @@ fn test_boxplot() -> Result<()> {
     assert!(metadata.len() > 1_000);
     Ok(())
 }
+
+#[test]
+fn test_legend() -> Result<()> {
+    std::fs::create_dir_all(OUT_DIR).ok();
+
+    let x = [0.0, 1.0, 2.0, 3.0];
+    let y1 = [0.0, 1.0, 2.0, 3.0];
+    let y2 = [3.0, 2.0, 1.0, 0.0];
+
+    let figure = Figure::builder()
+        .panel(GridPos::new(1, 1, 1), |p| {
+            p.line(
+                &x,
+                &y1,
+                LineStyle::new()
+                    .color(Color::TABLEAU[0])
+                    .label("up"),
+            )
+            .line(
+                &x,
+                &y2,
+                LineStyle::new()
+                    .color(Color::TABLEAU[1])
+                    .label("down"),
+            )
+            .axes(
+                AxesStyle::new()
+                    .title("legend test")
+                    .legend(LegendStyle::show()),
+            );
+        })
+        .build()?;
+
+    let path = Path::new(OUT_DIR).join("test_legend.png");
+    figure.save(&path, SaveOptions::default())?;
+
+    let metadata = std::fs::metadata(path).map_err(|_| Error::Io("output missing".into()))?;
+    assert!(metadata.len() > 1_000);
+    Ok(())
+}
+
+#[test]
+fn test_horizontal_boxplot() -> Result<()> {
+    std::fs::create_dir_all(OUT_DIR).ok();
+
+    let groups = vec![vec![1.0, 2.0, 3.0, 4.0], vec![2.0, 3.0, 4.0, 5.0, 6.0]];
+
+    let figure = Figure::builder()
+        .panel(GridPos::new(1, 1, 1), |p| {
+            p.boxplot(&groups, BoxplotStyle::new().horizontal(true))
+                .axes(AxesStyle::new().title("horizontal boxplot"));
+        })
+        .build()?;
+
+    let path = Path::new(OUT_DIR).join("test_horizontal_boxplot.png");
+    figure.save(&path, SaveOptions::default())?;
+
+    let metadata = std::fs::metadata(path).map_err(|_| Error::Io("output missing".into()))?;
+    assert!(metadata.len() > 1_000);
+    Ok(())
+}

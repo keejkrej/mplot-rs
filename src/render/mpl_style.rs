@@ -38,6 +38,7 @@ pub const MPL_BOX_LINE_WIDTH: f64 = 1.0;
 pub const MPL_MEDIAN_LINE_WIDTH: f64 = 1.0;
 pub const MPL_WHISKER_LINE_WIDTH: f64 = 1.0;
 pub const MPL_FLIER_SIZE: f64 = 6.0;
+pub const MPL_MARKER_SIZE: f64 = 6.0;
 
 pub const CHART_MARGIN_PX: i32 = 8;
 pub const LABEL_AREA_LEFT: u32 = 48;

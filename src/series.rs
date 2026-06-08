@@ -21,11 +21,14 @@ pub enum LineDash {
     Dotted,
 }
 
-/// Marker style for line series (reserved for future use).
+/// Marker style for line series.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Marker {
     #[default]
     None,
+    Circle,
+    Square,
+    Cross,
 }
 
 /// Styling for line series.
@@ -34,6 +37,7 @@ pub struct LineStyle {
     color: Color,
     width: f64,
     dash: LineDash,
+    marker: Marker,
     label: Option<String>,
     alpha: f64,
 }
@@ -44,6 +48,7 @@ impl Default for LineStyle {
             color: Color::TABLEAU[0],
             width: DEFAULT_LINE_WIDTH,
             dash: LineDash::Solid,
+            marker: Marker::None,
             label: None,
             alpha: 1.0,
         }
@@ -70,6 +75,11 @@ impl LineStyle {
         self
     }
 
+    pub fn marker(mut self, marker: Marker) -> Self {
+        self.marker = marker;
+        self
+    }
+
     pub fn label(mut self, label: impl Into<String>) -> Self {
         self.label = Some(label.into());
         self
@@ -90,6 +100,10 @@ impl LineStyle {
 
     pub(crate) fn dash_value(&self) -> LineDash {
         self.dash
+    }
+
+    pub(crate) fn marker_value(&self) -> Marker {
+        self.marker
     }
 
     pub(crate) fn label_value(&self) -> Option<&str> {

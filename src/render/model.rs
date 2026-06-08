@@ -1,5 +1,5 @@
 use crate::panel::TickLabels;
-use crate::series::LineDash;
+use crate::series::{LineDash, Marker};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct LineSeries {
@@ -8,6 +8,7 @@ pub struct LineSeries {
     pub label: String,
     pub color: crate::color::Color,
     pub dash: LineDash,
+    pub marker: Marker,
     pub width: f64,
 }
 
@@ -44,6 +45,7 @@ pub struct CompiledPanel {
     pub show_grid: bool,
     pub ticks_x: Option<TickLabels>,
     pub ticks_y: Option<TickLabels>,
+    pub show_legend: bool,
     pub series: Vec<CompiledSeries>,
 }
 

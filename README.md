@@ -82,4 +82,4 @@ Import everything common via `use mplot::prelude::*;`.
 
 ## Status
 
-Early development. Line plots and boxplots are supported. Bar, histogram, image, contour, legend, and SVG/PDF export are planned.
+Early development. Line plots and boxplots with legend, markers, and horizontal orientation are supported. Bar, histogram, image, contour, and SVG/PDF export are planned.

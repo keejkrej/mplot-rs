@@ -43,6 +43,7 @@ fn compile_panel(panel: &PanelSpec) -> CompiledPanel {
         show_grid: axes.grid_value(),
         ticks_x: axes.x_ticks_value().cloned(),
         ticks_y: axes.y_ticks_value().cloned(),
+        show_legend: axes.legend_value().show,
         series: panel.series.iter().map(compile_series).collect(),
     }
 }
@@ -61,6 +62,7 @@ fn compile_series(series: &Series) -> CompiledSeries {
                 label: style.label_value().unwrap_or("").to_string(),
                 color,
                 dash: style.dash_value(),
+                marker: style.marker_value(),
                 width: style.width_value(),
             })
         }
