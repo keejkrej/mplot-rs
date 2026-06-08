@@ -60,7 +60,7 @@ cargo run --example gallery
 | `GridSpec` / `SubplotSlot` | Irregular grids with rowspan/colspan |
 | `ExportFormat` | PNG, SVG, or PDF export (from path extension or `SaveOptions`) |
 | `Color`, `Scale`, `LineDash` | Typed styling enums |
-| `SaveOptions` | dpi, tight bbox, pad |
+| `SaveOptions` | dpi (default 200), tight bbox, pad |
 
 Typical flow:
 
@@ -77,7 +77,7 @@ Import everything common via `use mplot::prelude::*;`.
 - Constrained layout for multi-panel figures and colorbar insets (`.constrained_layout(true)`)
 - Linear and log x/y scales (`Scale::Log` on `AxesStyle::x_scale` / `y_scale`)
 - Custom tick labels (`AxesStyle::x_tick_labels`)
-- Figure size in inches (`Size::inches`)
+- Figure size in inches (`Size::inches`); PNG saves default to **200 DPI** for sharp text (override with `SaveOptions::dpi`)
 - Matplotlib-inspired default styling (DejaVu Sans, default line width, boxplot colors)
 
 ## Fidelity tests

@@ -4,7 +4,7 @@
 //!
 //! | matplotlib rcParam   | Rust constant              |
 //! |----------------------|----------------------------|
-//! | `figure.dpi`         | `DEFAULT_DPI` (constants)  |
+//! | `figure.dpi`         | `FIDELITY_DPI` (goldens); `DEFAULT_DPI` for saves |
 //! | `font.size`          | `MPL_FONT_SIZE`            |
 //! | `axes.titlesize`     | `MPL_FONT_SIZE`            |
 //! | `axes.labelsize`     | `MPL_FONT_SIZE`            |
@@ -59,6 +59,7 @@ pub const MPL_WHISKER_LINE_WIDTH: f64 = 1.0;
 pub const MPL_FLIER_SIZE: f64 = 6.0;
 pub const MPL_MARKER_SIZE: f64 = 6.0;
 
+/// Chart margin at the fidelity reference DPI (100).
 pub const CHART_MARGIN_PX: i32 = 8;
 
 pub fn pt_to_px(points: f64, dpi: u32) -> f64 {
@@ -69,11 +70,23 @@ pub fn tick_size_px(dpi: u32) -> i32 {
     pt_to_px(MPL_XTICK_MAJOR_SIZE, dpi).round() as i32
 }
 
+pub fn chart_margin_px(dpi: u32) -> i32 {
+    (CHART_MARGIN_PX as f64 * dpi as f64 / crate::constants::FIDELITY_DPI as f64).round() as i32
+}
+
+pub fn stroke_width_px(width_pt: f64, dpi: u32) -> u32 {
+    pt_to_px(width_pt, dpi).round().max(1.0) as u32
+}
+
+pub fn marker_radius_px(size_pt: f64, dpi: u32) -> i32 {
+    (pt_to_px(size_pt, dpi) / 2.0).round().max(2.0) as i32
+}
+
 /// Left label area sized from tick font, tick padding, and y-axis label pad.
 pub fn label_area_left_px(tick_fontsize: f64, dpi: u32) -> u32 {
     let tick_px = pt_to_px(tick_fontsize.max(MPL_TICK_FONT_SIZE * 0.5), dpi);
     let pad_px = pt_to_px(MPL_XTICK_MAJOR_PAD + MPL_LABEL_PAD, dpi);
-    (tick_px * 2.2 + pad_px + CHART_MARGIN_PX as f64).round() as u32
+    (tick_px * 2.2 + pad_px + chart_margin_px(dpi) as f64).round() as u32
 }
 
 /// Bottom label area sized from axis/tick fonts, tick marks, and label pad.
@@ -82,7 +95,7 @@ pub fn label_area_bottom_px(label_fontsize: f64, tick_fontsize: f64, dpi: u32) -
     let tick_px = pt_to_px(tick_fontsize.max(MPL_TICK_FONT_SIZE * 0.5), dpi);
     let tick_mark = tick_size_px(dpi) as f64;
     let pad_px = pt_to_px(MPL_XTICK_MAJOR_PAD + MPL_LABEL_PAD, dpi);
-    (label_px * 0.35 + tick_px + tick_mark + pad_px + CHART_MARGIN_PX as f64).round() as u32
+    (label_px * 0.35 + tick_px + tick_mark + pad_px + chart_margin_px(dpi) as f64).round() as u32
 }
 
 /// Extra top margin for panel titles (`axes.titlepad`).

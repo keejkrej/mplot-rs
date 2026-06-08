@@ -10,6 +10,12 @@ use std::path::{Path, PathBuf};
 const GOLDEN_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fidelity/golden");
 const OUT_DIR: &str = "/tmp/mplot/fidelity";
 
+const FIDELITY_DPI: u32 = 100;
+
+fn fidelity_save_options() -> SaveOptions {
+    SaveOptions::new().dpi(FIDELITY_DPI)
+}
+
 fn render_simple_line(path: &Path) -> Result<()> {
     let x = [0.0, 1.0, 2.0, 3.0, 4.0];
     let y = [0.0, 1.0, 4.0, 9.0, 16.0];
@@ -31,7 +37,7 @@ fn render_simple_line(path: &Path) -> Result<()> {
             );
         })
         .build()?
-        .save(path, SaveOptions::default())
+        .save(path, fidelity_save_options())
 }
 
 fn render_subplot_lines(path: &Path) -> Result<()> {
@@ -59,7 +65,7 @@ fn render_subplot_lines(path: &Path) -> Result<()> {
         });
     }
 
-    builder.build()?.save(path, SaveOptions::default())
+    builder.build()?.save(path, fidelity_save_options())
 }
 
 fn render_boxplot_linear(path: &Path) -> Result<()> {
@@ -83,7 +89,7 @@ fn render_boxplot_linear(path: &Path) -> Result<()> {
                 );
         })
         .build()?
-        .save(path, SaveOptions::default())
+        .save(path, fidelity_save_options())
 }
 
 fn render_boxplot_log(path: &Path) -> Result<()> {
@@ -109,7 +115,7 @@ fn render_boxplot_log(path: &Path) -> Result<()> {
                 );
         })
         .build()?
-        .save(path, SaveOptions::default())
+        .save(path, fidelity_save_options())
 }
 
 fn render_gallery_line(path: &Path) -> Result<()> {
@@ -127,7 +133,7 @@ fn render_gallery_line(path: &Path) -> Result<()> {
                 );
         })
         .build()?
-        .save(path, SaveOptions::default())
+        .save(path, fidelity_save_options())
 }
 
 fn render_gallery_subplots(path: &Path) -> Result<()> {
@@ -150,7 +156,7 @@ fn render_gallery_subplots(path: &Path) -> Result<()> {
         });
     }
 
-    builder.build()?.save(path, SaveOptions::default())
+    builder.build()?.save(path, fidelity_save_options())
 }
 
 fn render_gallery_boxplot(path: &Path) -> Result<()> {
@@ -170,7 +176,7 @@ fn render_gallery_boxplot(path: &Path) -> Result<()> {
                 );
         })
         .build()?
-        .save(path, SaveOptions::default())
+        .save(path, fidelity_save_options())
 }
 
 fn render_bar_chart(path: &Path) -> Result<()> {
@@ -194,7 +200,7 @@ fn render_bar_chart(path: &Path) -> Result<()> {
             );
         })
         .build()?
-        .save(path, SaveOptions::default())
+        .save(path, fidelity_save_options())
 }
 
 fn render_histogram(path: &Path) -> Result<()> {
@@ -216,7 +222,7 @@ fn render_histogram(path: &Path) -> Result<()> {
             );
         })
         .build()?
-        .save(path, SaveOptions::default())
+        .save(path, fidelity_save_options())
 }
 
 fn render_fill_between(path: &Path) -> Result<()> {
@@ -242,7 +248,7 @@ fn render_fill_between(path: &Path) -> Result<()> {
             );
         })
         .build()?
-        .save(path, SaveOptions::default())
+        .save(path, fidelity_save_options())
 }
 
 fn render_image_viridis(path: &Path) -> Result<()> {
@@ -268,7 +274,7 @@ fn render_image_viridis(path: &Path) -> Result<()> {
             );
         })
         .build()?
-        .save(path, SaveOptions::default())
+        .save(path, fidelity_save_options())
 }
 
 fn render_contour(path: &Path) -> Result<()> {
@@ -300,7 +306,7 @@ fn render_contour(path: &Path) -> Result<()> {
             );
         })
         .build()?
-        .save(path, SaveOptions::default())
+        .save(path, fidelity_save_options())
 }
 
 fn render_line_log_x(path: &Path) -> Result<()> {
@@ -323,7 +329,7 @@ fn render_line_log_x(path: &Path) -> Result<()> {
             );
         })
         .build()?
-        .save(path, SaveOptions::default())
+        .save(path, fidelity_save_options())
 }
 
 fn render_line_log_log(path: &Path) -> Result<()> {
@@ -347,7 +353,7 @@ fn render_line_log_log(path: &Path) -> Result<()> {
             );
         })
         .build()?
-        .save(path, SaveOptions::default())
+        .save(path, fidelity_save_options())
 }
 
 fn compare_pngs(actual: &Path, golden: &Path, max_mean_delta: f64) -> std::result::Result<(), String> {

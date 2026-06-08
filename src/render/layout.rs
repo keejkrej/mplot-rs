@@ -66,44 +66,6 @@ pub fn panel_rect_for_slot(
     }
 }
 
-pub fn subplot_panels(
-    figure_width_px: u32,
-    figure_height_px: u32,
-    rows: usize,
-    cols: usize,
-    wspace: f64,
-    hspace: f64,
-    tight: bool,
-) -> Vec<PanelRect> {
-    if rows == 0 || cols == 0 {
-        return Vec::new();
-    }
-
-    let mut panels = Vec::with_capacity(rows * cols);
-    for row in 0..rows {
-        for col in 0..cols {
-            let slot = SubplotSlot {
-                grid_rows: rows,
-                grid_cols: cols,
-                row,
-                col,
-                rowspan: 1,
-                colspan: 1,
-            };
-            panels.push(panel_rect_for_slot(
-                figure_width_px,
-                figure_height_px,
-                &slot,
-                wspace,
-                hspace,
-                tight,
-                false,
-            ));
-        }
-    }
-    panels
-}
-
 pub fn pad_inches_px(pad_inches: Option<f64>, dpi: u32) -> u32 {
     pad_inches
         .map(|pad| (pad * dpi as f64).round() as u32)
@@ -116,7 +78,15 @@ mod tests {
 
     #[test]
     fn subplot_grid_has_expected_count() {
-        let panels = subplot_panels(1000, 800, 2, 2, 0.2, 0.2, false);
+        let gs = crate::gridspec::GridSpec::new(2, 2);
+        let mut panels = Vec::new();
+        for row in 0..2 {
+            for col in 0..2 {
+                panels.push(panel_rect_for_slot(
+                    1000, 800, &gs.at(row, col), 0.2, 0.2, false, false,
+                ));
+            }
+        }
         assert_eq!(panels.len(), 4);
         assert!(panels[0].width > 0);
         assert!(panels[0].height > 0);

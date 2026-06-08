@@ -118,10 +118,6 @@ impl SaveOptions {
         self.pad_inches
     }
 
-    pub(crate) fn format_value(&self) -> Option<ExportFormat> {
-        self.format
-    }
-
     pub(crate) fn resolve_format(&self, path: &Path) -> crate::error::Result<ExportFormat> {
         if let Some(format) = self.format {
             return Ok(format);

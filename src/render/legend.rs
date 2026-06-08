@@ -5,7 +5,7 @@ use plotters::style::{Color, RGBColor, ShapeStyle};
 
 use crate::color::Color as MplotColor;
 use crate::render::model::{CompiledSeries, LineSeries};
-use crate::render::mpl_style::{MPL_FONT, MPL_SPINE};
+use crate::render::mpl_style::{stroke_width_px, MPL_FONT, MPL_SPINE};
 use crate::series::LineDash;
 
 type Chart<'a, DB> = ChartContext<'a, DB, Cartesian2d<RangedCoordf64, RangedCoordf64>>;
@@ -71,6 +71,7 @@ pub fn draw_legend<DB: DrawingBackend>(
     chart: &mut Chart<'_, DB>,
     entries: &[LegendEntry],
     font_px: i32,
+    dpi: u32,
     xmin: f64,
     xmax: f64,
     ymin: f64,
@@ -114,7 +115,7 @@ pub fn draw_legend<DB: DrawingBackend>(
                 (frame_left, frame_top),
                 (frame_left, frame_bottom),
             ],
-            edge.stroke_width(1),
+            edge.stroke_width(stroke_width_px(1.0, dpi)),
         )))
         .map_err(|_| "failed to draw legend border")?;
 
@@ -123,9 +124,9 @@ pub fn draw_legend<DB: DrawingBackend>(
         let line_x0 = frame_left + pad;
         let line_x1 = line_x0 + line_len;
         if entry.patch {
-            draw_legend_patch(chart, entry, line_x0, line_x1, row_center)?;
+            draw_legend_patch(chart, entry, line_x0, line_x1, row_center, dpi)?;
         } else {
-            draw_legend_line(chart, entry, line_x0, line_x1, row_center)?;
+            draw_legend_line(chart, entry, line_x0, line_x1, row_center, dpi)?;
         }
         let text_x = line_x1 + pad;
         let label = entry.label.clone();
@@ -147,6 +148,7 @@ fn draw_legend_patch<DB: DrawingBackend>(
     x0: f64,
     x1: f64,
     y: f64,
+    dpi: u32,
 ) -> Result<(), &'static str> {
     let rgb = entry.color.to_rgb();
     let half = (x1 - x0) * 0.15;
@@ -156,7 +158,7 @@ fn draw_legend_patch<DB: DrawingBackend>(
             ShapeStyle {
                 color: rgb.to_rgba(),
                 filled: true,
-                stroke_width: 1,
+                stroke_width: stroke_width_px(1.0, dpi),
             },
         )))
         .map_err(|_| "failed to draw legend patch")?;
@@ -169,9 +171,10 @@ fn draw_legend_line<DB: DrawingBackend>(
     x0: f64,
     x1: f64,
     y: f64,
+    dpi: u32,
 ) -> Result<(), &'static str> {
     let rgb = entry.color.to_rgb();
-    let stroke_width = entry.width.round().max(1.0) as u32;
+    let stroke_width = stroke_width_px(entry.width, dpi);
     let style = ShapeStyle {
         color: rgb.to_rgba(),
         filled: false,

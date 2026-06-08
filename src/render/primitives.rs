@@ -10,7 +10,9 @@ use crate::render::model::{
     BarSeries, BoxplotSeries, CompiledSeries, ContourSeries, FillBetweenSeries, HistSeries,
     ImageSeries, LineSeries, TextSeries,
 };
-use crate::render::mpl_style::{MPL_FONT, MPL_LINE_WIDTH, MPL_MARKER_SIZE};
+use crate::render::mpl_style::{
+    marker_radius_px, stroke_width_px, MPL_FONT, MPL_LINE_WIDTH, MPL_MARKER_SIZE,
+};
 use crate::render::scene::{box_positions, box_stats, default_box_width};
 use crate::series::{LineDash, Marker};
 
@@ -21,15 +23,16 @@ pub fn draw_series<DB: DrawingBackend>(
     series: &CompiledSeries,
     scales: PanelScales,
     tick_fontsize_px: f64,
+    dpi: u32,
 ) -> Result<(), &'static str> {
     match series {
-        CompiledSeries::Line(curve) => draw_curve(chart, curve, scales),
-        CompiledSeries::Boxplot(boxes) => draw_boxplot(chart, boxes, scales),
-        CompiledSeries::Bar(bar) => draw_bar(chart, bar, scales),
-        CompiledSeries::Histogram(hist) => draw_histogram(chart, hist, scales),
-        CompiledSeries::FillBetween(fill) => draw_fill_between(chart, fill, scales),
+        CompiledSeries::Line(curve) => draw_curve(chart, curve, scales, dpi),
+        CompiledSeries::Boxplot(boxes) => draw_boxplot(chart, boxes, scales, dpi),
+        CompiledSeries::Bar(bar) => draw_bar(chart, bar, scales, dpi),
+        CompiledSeries::Histogram(hist) => draw_histogram(chart, hist, scales, dpi),
+        CompiledSeries::FillBetween(fill) => draw_fill_between(chart, fill, scales, dpi),
         CompiledSeries::Image(image) => draw_image(chart, image, scales),
-        CompiledSeries::Contour(contour) => draw_contour(chart, contour, scales),
+        CompiledSeries::Contour(contour) => draw_contour(chart, contour, scales, dpi),
         CompiledSeries::Text(text) => draw_text(chart, text, scales, tick_fontsize_px),
     }
 }
@@ -42,6 +45,7 @@ pub fn draw_colorbar<DB: DrawingBackend>(
     xmax: f64,
     ymin: f64,
     ymax: f64,
+    dpi: u32,
 ) -> Result<(), &'static str> {
     let x_span = (xmax - xmin).max(1e-12);
     let y_span = (ymax - ymin).max(1e-12);
@@ -70,14 +74,19 @@ pub fn draw_colorbar<DB: DrawingBackend>(
     chart
         .draw_series(std::iter::once(PathElement::new(
             vec![(x0, ymin), (x1, ymin), (x1, ymax), (x0, ymax), (x0, ymin)],
-            edge.stroke_width(1),
+            edge.stroke_width(stroke_width_px(1.0, dpi)),
         )))
         .map_err(|_| "failed to draw colorbar border")?;
     let _ = normalize;
     Ok(())
 }
 
-fn draw_curve<DB: DrawingBackend>(chart: &mut Chart<'_, DB>, curve: &LineSeries, scales: PanelScales) -> Result<(), &'static str> {
+fn draw_curve<DB: DrawingBackend>(
+    chart: &mut Chart<'_, DB>,
+    curve: &LineSeries,
+    scales: PanelScales,
+    dpi: u32,
+) -> Result<(), &'static str> {
     if curve.x.len() != curve.y.len() || curve.x.is_empty() {
         return Ok(());
     }
@@ -94,7 +103,7 @@ fn draw_curve<DB: DrawingBackend>(chart: &mut Chart<'_, DB>, curve: &LineSeries,
 
     let rgb = curve.color.to_rgb();
     let width = if curve.width > 0.0 { curve.width } else { MPL_LINE_WIDTH };
-    let stroke_width = width.round().max(1.0) as u32;
+    let stroke_width = stroke_width_px(width, dpi);
     let style = ShapeStyle {
         color: rgb.to_rgba(),
         filled: false,
@@ -117,7 +126,7 @@ fn draw_curve<DB: DrawingBackend>(chart: &mut Chart<'_, DB>, curve: &LineSeries,
                 .map_err(|_| "failed to draw curve")?,
         };
     }
-    draw_markers(chart, &points, curve.marker, rgb)
+    draw_markers(chart, &points, curve.marker, rgb, dpi)
 }
 
 fn draw_markers<DB: DrawingBackend>(
@@ -125,15 +134,16 @@ fn draw_markers<DB: DrawingBackend>(
     points: &[(f64, f64)],
     marker: Marker,
     color: RGBColor,
+    dpi: u32,
 ) -> Result<(), &'static str> {
     if matches!(marker, Marker::None) {
         return Ok(());
     }
-    let size = (MPL_MARKER_SIZE / 2.0).round().max(2.0) as i32;
+    let size = marker_radius_px(MPL_MARKER_SIZE, dpi);
     let style = ShapeStyle {
         color: color.to_rgba(),
         filled: false,
-        stroke_width: 1,
+        stroke_width: stroke_width_px(1.0, dpi),
     };
     for &(x, y) in points {
         match marker {
@@ -172,7 +182,12 @@ fn draw_markers<DB: DrawingBackend>(
     Ok(())
 }
 
-fn draw_bar<DB: DrawingBackend>(chart: &mut Chart<'_, DB>, bar: &BarSeries, scales: PanelScales) -> Result<(), &'static str> {
+fn draw_bar<DB: DrawingBackend>(
+    chart: &mut Chart<'_, DB>,
+    bar: &BarSeries,
+    scales: PanelScales,
+    dpi: u32,
+) -> Result<(), &'static str> {
     let rgb = bar.color.to_rgb();
     let half = bar.width / 2.0;
     let y_base = scales.y.data_to_axis(bar.baseline);
@@ -187,7 +202,7 @@ fn draw_bar<DB: DrawingBackend>(chart: &mut Chart<'_, DB>, bar: &BarSeries, scal
                 ShapeStyle {
                     color: rgb.to_rgba(),
                     filled: true,
-                    stroke_width: 1,
+                    stroke_width: stroke_width_px(1.0, dpi),
                 },
             )))
             .map_err(|_| "failed to draw bar")?;
@@ -195,7 +210,12 @@ fn draw_bar<DB: DrawingBackend>(chart: &mut Chart<'_, DB>, bar: &BarSeries, scal
     Ok(())
 }
 
-fn draw_histogram<DB: DrawingBackend>(chart: &mut Chart<'_, DB>, hist: &HistSeries, scales: PanelScales) -> Result<(), &'static str> {
+fn draw_histogram<DB: DrawingBackend>(
+    chart: &mut Chart<'_, DB>,
+    hist: &HistSeries,
+    scales: PanelScales,
+    dpi: u32,
+) -> Result<(), &'static str> {
     let (edges, counts) = histogram_bins(&hist.data, hist.bins);
     if counts.is_empty() {
         return Ok(());
@@ -213,7 +233,7 @@ fn draw_histogram<DB: DrawingBackend>(chart: &mut Chart<'_, DB>, hist: &HistSeri
                 ShapeStyle {
                     color: rgb.to_rgba(),
                     filled: true,
-                    stroke_width: 1,
+                    stroke_width: stroke_width_px(1.0, dpi),
                 },
             )))
             .map_err(|_| "failed to draw histogram bar")?;
@@ -226,7 +246,7 @@ fn draw_histogram<DB: DrawingBackend>(chart: &mut Chart<'_, DB>, hist: &HistSeri
                     (x0, y0.max(y1)),
                     (x0, y0.min(y1)),
                 ],
-                edge.stroke_width(1),
+                edge.stroke_width(stroke_width_px(1.0, dpi)),
             )))
             .map_err(|_| "failed to draw histogram edge")?;
     }
@@ -264,6 +284,7 @@ fn draw_fill_between<DB: DrawingBackend>(
     chart: &mut Chart<'_, DB>,
     fill: &FillBetweenSeries,
     scales: PanelScales,
+    _dpi: u32,
 ) -> Result<(), &'static str> {
     if fill.x.len() != fill.y1.len() || fill.x.len() != fill.y2.len() || fill.x.is_empty() {
         return Ok(());
@@ -336,7 +357,12 @@ fn draw_image<DB: DrawingBackend>(chart: &mut Chart<'_, DB>, image: &ImageSeries
     Ok(())
 }
 
-fn draw_contour<DB: DrawingBackend>(chart: &mut Chart<'_, DB>, contour: &ContourSeries, scales: PanelScales) -> Result<(), &'static str> {
+fn draw_contour<DB: DrawingBackend>(
+    chart: &mut Chart<'_, DB>,
+    contour: &ContourSeries,
+    scales: PanelScales,
+    dpi: u32,
+) -> Result<(), &'static str> {
     let (x0, x1, y0, y1) = contour.extent;
     let w = contour.width;
     let h = contour.height;
@@ -350,7 +376,7 @@ fn draw_contour<DB: DrawingBackend>(chart: &mut Chart<'_, DB>, contour: &Contour
 
     for &level in &contour.levels {
         draw_contour_level(
-            chart, contour, scales, x0, x1, y0, y1, w, h, value_at, level,
+            chart, contour, scales, x0, x1, y0, y1, w, h, value_at, level, dpi,
         )?;
     }
     Ok(())
@@ -368,6 +394,7 @@ fn draw_contour_level<DB: DrawingBackend, F>(
     h: usize,
     value_at: F,
     level: f64,
+    dpi: u32,
 ) -> Result<(), &'static str>
 where
     F: Fn(usize, usize) -> f64,
@@ -376,7 +403,7 @@ where
     let style = ShapeStyle {
         color: rgb.to_rgba(),
         filled: false,
-        stroke_width: 1,
+        stroke_width: stroke_width_px(MPL_LINE_WIDTH, dpi),
     };
 
     for row in 0..(h - 1) {
@@ -484,6 +511,7 @@ pub fn draw_boxplot<DB: DrawingBackend>(
     chart: &mut Chart<'_, DB>,
     boxes: &BoxplotSeries,
     scales: PanelScales,
+    dpi: u32,
 ) -> Result<(), &'static str> {
     let whisker = boxes.whisker;
     let positions = box_positions(boxes);
@@ -492,7 +520,8 @@ pub fn draw_boxplot<DB: DrawingBackend>(
     let edge = RGBColor(MPL_BOX_EDGE.0, MPL_BOX_EDGE.1, MPL_BOX_EDGE.2);
     let fill = RGBColor(MPL_BOX_FACE.0, MPL_BOX_FACE.1, MPL_BOX_FACE.2);
     let median_color = RGBColor(MPL_MEDIAN.0, MPL_MEDIAN.1, MPL_MEDIAN.2);
-    let flier_size = (MPL_FLIER_SIZE / 2.0).round().max(2.0) as i32;
+    let flier_size = marker_radius_px(MPL_FLIER_SIZE, dpi);
+    let thin_stroke = stroke_width_px(1.0, dpi);
 
     for (idx, group) in boxes.groups.iter().enumerate() {
         let pos = positions.get(idx).copied().unwrap_or((idx + 1) as f64);
@@ -503,18 +532,18 @@ pub fn draw_boxplot<DB: DrawingBackend>(
         let edge_style = ShapeStyle {
             color: edge.to_rgba(),
             filled: false,
-            stroke_width: MPL_BOX_LINE_WIDTH.round() as u32,
+            stroke_width: stroke_width_px(MPL_BOX_LINE_WIDTH, dpi),
         };
 
         if boxes.horizontal {
             draw_horizontal_box(
                 chart, scales, pos, width, cap_width, &stats, boxes, edge, fill, median_color,
-                edge_style, flier_size,
+                edge_style, flier_size, dpi, thin_stroke,
             )?;
         } else {
             draw_vertical_box(
                 chart, scales, pos, width, cap_width, &stats, boxes, edge, fill, median_color,
-                edge_style, flier_size,
+                edge_style, flier_size, dpi, thin_stroke,
             )?;
         }
     }
@@ -534,6 +563,8 @@ fn draw_vertical_box<DB: DrawingBackend>(
     median_color: RGBColor,
     edge_style: ShapeStyle,
     flier_size: i32,
+    dpi: u32,
+    thin_stroke: u32,
 ) -> Result<(), &'static str> {
     let y_low = scales.y.data_to_axis(stats.whislo);
     let y_q1 = scales.y.data_to_axis(stats.q1);
@@ -545,14 +576,14 @@ fn draw_vertical_box<DB: DrawingBackend>(
     let cap_x0 = pos - cap_width / 2.0;
     let cap_x1 = pos + cap_width / 2.0;
 
-    draw_box_rect(chart, boxes.patch_artist, x0, x1, y_q1, y_q3, fill, edge_style)?;
+    draw_box_rect(chart, boxes.patch_artist, x0, x1, y_q1, y_q3, fill, edge_style, thin_stroke)?;
     chart
         .draw_series(std::iter::once(PathElement::new(
             vec![(x0, y_med), (x1, y_med)],
-            median_color.stroke_width(MPL_MEDIAN_LINE_WIDTH.round() as u32),
+            median_color.stroke_width(stroke_width_px(MPL_MEDIAN_LINE_WIDTH, dpi)),
         )))
         .map_err(|_| "failed to draw median")?;
-    let whisker_style = edge.stroke_width(MPL_WHISKER_LINE_WIDTH.round() as u32);
+    let whisker_style = edge.stroke_width(stroke_width_px(MPL_WHISKER_LINE_WIDTH, dpi));
     chart
         .draw_series(std::iter::once(PathElement::new(
             vec![(pos, y_low), (pos, y_q1)],
@@ -587,7 +618,7 @@ fn draw_vertical_box<DB: DrawingBackend>(
                     ShapeStyle {
                         color: edge.to_rgba(),
                         filled: false,
-                        stroke_width: 1,
+                        stroke_width: thin_stroke,
                     },
                 )))
                 .map_err(|_| "failed to draw flier")?;
@@ -609,6 +640,8 @@ fn draw_horizontal_box<DB: DrawingBackend>(
     median_color: RGBColor,
     edge_style: ShapeStyle,
     flier_size: i32,
+    dpi: u32,
+    thin_stroke: u32,
 ) -> Result<(), &'static str> {
     let x_low = scales.x.data_to_axis(stats.whislo);
     let x_q1 = scales.x.data_to_axis(stats.q1);
@@ -620,14 +653,14 @@ fn draw_horizontal_box<DB: DrawingBackend>(
     let cap_y0 = pos - cap_width / 2.0;
     let cap_y1 = pos + cap_width / 2.0;
 
-    draw_box_rect(chart, boxes.patch_artist, x_q1, x_q3, y0, y1, fill, edge_style)?;
+    draw_box_rect(chart, boxes.patch_artist, x_q1, x_q3, y0, y1, fill, edge_style, thin_stroke)?;
     chart
         .draw_series(std::iter::once(PathElement::new(
             vec![(x_med, y0), (x_med, y1)],
-            median_color.stroke_width(MPL_MEDIAN_LINE_WIDTH.round() as u32),
+            median_color.stroke_width(stroke_width_px(MPL_MEDIAN_LINE_WIDTH, dpi)),
         )))
         .map_err(|_| "failed to draw median")?;
-    let whisker_style = edge.stroke_width(MPL_WHISKER_LINE_WIDTH.round() as u32);
+    let whisker_style = edge.stroke_width(stroke_width_px(MPL_WHISKER_LINE_WIDTH, dpi));
     chart
         .draw_series(std::iter::once(PathElement::new(
             vec![(x_low, pos), (x_q1, pos)],
@@ -662,7 +695,7 @@ fn draw_horizontal_box<DB: DrawingBackend>(
                     ShapeStyle {
                         color: edge.to_rgba(),
                         filled: false,
-                        stroke_width: 1,
+                        stroke_width: thin_stroke,
                     },
                 )))
                 .map_err(|_| "failed to draw flier")?;
@@ -680,6 +713,7 @@ fn draw_box_rect<DB: DrawingBackend>(
     y1: f64,
     fill: RGBColor,
     edge_style: ShapeStyle,
+    thin_stroke: u32,
 ) -> Result<(), &'static str> {
     if patch_artist {
         chart
@@ -688,7 +722,7 @@ fn draw_box_rect<DB: DrawingBackend>(
                 ShapeStyle {
                     color: fill.to_rgba(),
                     filled: true,
-                    stroke_width: 1,
+                    stroke_width: thin_stroke,
                 },
             )))
             .map_err(|_| "failed to draw box")?;

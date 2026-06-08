@@ -1,4 +1,8 @@
-pub const DEFAULT_DPI: u32 = 100;
+/// Default raster export DPI (`SaveOptions::default()`). Higher than matplotlib's
+/// screen figure DPI so PNG text and lines render sharply.
+pub const DEFAULT_DPI: u32 = 200;
+/// DPI used by matplotlib fidelity goldens (`scripts/mpl_reference.py`).
+pub const FIDELITY_DPI: u32 = 100;
 pub const DEFAULT_FIGURE_WIDTH_IN: f64 = 6.4;
 pub const DEFAULT_FIGURE_HEIGHT_IN: f64 = 4.8;
 /// Matches `MPL_FONT_SIZE` in `render::mpl_style`.

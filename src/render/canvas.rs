@@ -12,8 +12,9 @@ use crate::render::layout::{pad_inches_px, panel_rect_for_slot};
 use crate::render::legend::{collect_entries, draw_legend};
 use crate::render::model::{CompiledFigure, CompiledPanel, CompiledSeries};
 use crate::render::mpl_style::{
-    label_area_bottom_px, label_area_left_px, pt_to_px, tick_size_px, title_pad_px,
-    CHART_MARGIN_PX, MPL_FONT, MPL_GRID, MPL_SPINE, MPL_XTICK_MAJOR_WIDTH,
+    chart_margin_px, label_area_bottom_px, label_area_left_px, pt_to_px, stroke_width_px,
+    tick_size_px, title_pad_px, MPL_AXES_LINE_WIDTH, MPL_FONT, MPL_GRID, MPL_SPINE,
+    MPL_XTICK_MAJOR_WIDTH,
 };
 use crate::render::primitives::{draw_colorbar, draw_series};
 
@@ -134,7 +135,7 @@ fn draw_panel_in_area<DB: DrawingBackend>(
     let spine = RGBColor(MPL_SPINE.0, MPL_SPINE.1, MPL_SPINE.2);
     let label_left = label_area_left_px(figure.tick_fontsize, figure.dpi);
     let label_bottom = label_area_bottom_px(figure.label_fontsize, figure.tick_fontsize, figure.dpi);
-    let chart_margin = CHART_MARGIN_PX + title_pad_px(figure.title_fontsize, figure.dpi);
+    let chart_margin = chart_margin_px(figure.dpi) + title_pad_px(figure.title_fontsize, figure.dpi);
 
     let mut chart = ChartBuilder::on(&plot_area)
         .margin(chart_margin)
@@ -178,7 +179,7 @@ fn draw_panel_in_area<DB: DrawingBackend>(
         .axis_style(ShapeStyle {
             color: spine.to_rgba(),
             filled: false,
-            stroke_width: MPL_XTICK_MAJOR_WIDTH.round() as u32,
+            stroke_width: stroke_width_px(MPL_XTICK_MAJOR_WIDTH, figure.dpi),
         })
         .set_all_tick_mark_size(tick_mark)
         .x_labels(ticks.x_count)
@@ -193,11 +194,11 @@ fn draw_panel_in_area<DB: DrawingBackend>(
     }
 
     mesh.draw().map_err(|_| "failed to draw mesh")?;
-    draw_extra_spines(&mut chart, xmin, xmax, ymin, ymax, spine)?;
+    draw_extra_spines(&mut chart, xmin, xmax, ymin, ymax, spine, figure.dpi)?;
 
     let mut colorbar: Option<(Normalize, Colormap)> = None;
     for series in &panel.series {
-        draw_series(&mut chart, series, scales, tick_px)?;
+        draw_series(&mut chart, series, scales, tick_px, figure.dpi)?;
         match series {
             CompiledSeries::Image(image) if image.show_colorbar => {
                 colorbar = Some((image.normalize, image.colormap));
@@ -219,9 +220,10 @@ fn draw_panel_in_area<DB: DrawingBackend>(
                 tick_px,
                 ymin,
                 ymax,
+                figure.dpi,
             )?;
         } else {
-            draw_colorbar(&mut chart, normalize, colormap, xmin, xmax, ymin, ymax)?;
+            draw_colorbar(&mut chart, normalize, colormap, xmin, xmax, ymin, ymax, figure.dpi)?;
         }
     }
 
@@ -231,6 +233,7 @@ fn draw_panel_in_area<DB: DrawingBackend>(
             &mut chart,
             &entries,
             tick_px as i32,
+            figure.dpi,
             xmin,
             xmax,
             ymin,
@@ -248,12 +251,13 @@ fn draw_colorbar_in_area<DB: DrawingBackend>(
     tick_px: f64,
     ymin: f64,
     ymax: f64,
+    dpi: u32,
 ) -> Result<(), &'static str> {
     let mut chart = ChartBuilder::on(area)
         .margin(2)
         .build_cartesian_2d(0.0..1.0, ymin..ymax)
         .map_err(|_| "failed to build colorbar chart")?;
-    draw_colorbar(&mut chart, normalize, colormap, 0.0, 1.0, ymin, ymax)?;
+    draw_colorbar(&mut chart, normalize, colormap, 0.0, 1.0, ymin, ymax, dpi)?;
     let _ = tick_px;
     Ok(())
 }
@@ -265,8 +269,9 @@ fn draw_extra_spines<DB: DrawingBackend>(
     ymin: f64,
     ymax: f64,
     spine: RGBColor,
+    dpi: u32,
 ) -> Result<(), &'static str> {
-    let style = spine.stroke_width(crate::render::mpl_style::MPL_AXES_LINE_WIDTH.round() as u32);
+    let style = spine.stroke_width(stroke_width_px(MPL_AXES_LINE_WIDTH, dpi));
     chart
         .draw_series([
             PathElement::new(vec![(xmin, ymax), (xmax, ymax)], style),
