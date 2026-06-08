@@ -11,6 +11,7 @@ keywords = ["plot", "2D", "matplotlib", "visualization"]
 [dependencies]
 num-traits = "0.2"
 plotters = { version = "0.3", default-features = true, features = ["ttf"] }
+svg2pdf = { version = "0.13", default-features = true }
 
 [dev-dependencies]
 approx = "0.5"

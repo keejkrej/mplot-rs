@@ -28,8 +28,15 @@ fn main() -> Result<()> {
 
     let png = Path::new("/tmp/mplot/gridspec.png");
     let svg = Path::new("/tmp/mplot/gridspec.svg");
+    let pdf = Path::new("/tmp/mplot/gridspec.pdf");
     figure.save(png, SaveOptions::default())?;
     figure.save(svg, SaveOptions::default())?;
-    println!("saved {} and {}", png.display(), svg.display());
+    figure.save(pdf, SaveOptions::default())?;
+    println!(
+        "saved {}, {}, and {}",
+        png.display(),
+        svg.display(),
+        pdf.display()
+    );
     Ok(())
 }

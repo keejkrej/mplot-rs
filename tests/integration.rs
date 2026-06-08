@@ -266,6 +266,28 @@ fn test_svg_export() -> Result<()> {
 }
 
 #[test]
+fn test_pdf_export() -> Result<()> {
+    std::fs::create_dir_all(OUT_DIR).ok();
+
+    let x = [0.0, 1.0, 2.0, 3.0];
+    let y = [0.0, 1.0, 4.0, 9.0];
+    let figure = Figure::builder()
+        .panel(GridPos::new(1, 1, 1), |p| {
+            p.line(&x, &y, LineStyle::new().label("y = x²"))
+                .axes(AxesStyle::new().title("pdf export"));
+        })
+        .build()?;
+
+    let path = Path::new(OUT_DIR).join("test_export.pdf");
+    figure.save(&path, SaveOptions::default())?;
+
+    let bytes = std::fs::read(path).map_err(|_| Error::Io("output missing".into()))?;
+    assert!(bytes.starts_with(b"%PDF"));
+    assert!(bytes.len() > 500);
+    Ok(())
+}
+
+#[test]
 fn test_gridspec_span() -> Result<()> {
     std::fs::create_dir_all(OUT_DIR).ok();
 

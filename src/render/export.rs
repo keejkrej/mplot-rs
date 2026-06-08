@@ -12,6 +12,6 @@ pub fn render(
     match format {
         ExportFormat::Png => crate::render::png::render(figure, path).map_err(Error::RenderFailed),
         ExportFormat::Svg => crate::render::svg::render(figure, path).map_err(Error::RenderFailed),
-        ExportFormat::Pdf => Err(Error::UnsupportedFormat),
+        ExportFormat::Pdf => crate::render::pdf::render(figure, path).map_err(Error::RenderFailed),
     }
 }

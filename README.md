@@ -2,7 +2,7 @@
 
 Native Rust 2D plotting with matplotlib-inspired rendering fidelity.
 
-**mplot** renders figures directly in Rust (PNG and SVG) using an idiomatic builder API: configure panels with typed styles, add series, then export.
+**mplot** renders figures directly in Rust (PNG, SVG, and PDF) using an idiomatic builder API: configure panels with typed styles, add series, then export.
 
 ## Quick start
 
@@ -58,7 +58,7 @@ cargo run --example gallery
 | `AxesStyle` | Labels, scales, limits, ticks, grid |
 | `GridPos` | Subplot address (rows, cols, index) |
 | `GridSpec` / `SubplotSlot` | Irregular grids with rowspan/colspan |
-| `ExportFormat` | PNG or SVG export (from path extension or `SaveOptions`) |
+| `ExportFormat` | PNG, SVG, or PDF export (from path extension or `SaveOptions`) |
 | `Color`, `Scale`, `LineDash` | Typed styling enums |
 | `SaveOptions` | dpi, tight bbox, pad |
 
@@ -66,14 +66,14 @@ Typical flow:
 
 1. `Figure::builder()` — set figure size and gaps if needed.
 2. `.panel(GridPos::new(r, c, i), |p| { … })` or `.panel(GridSpec::new(r, c).at(row, col), |p| { … })` — add series and axes style per subplot.
-3. `.build()?` then `figure.save(path, SaveOptions::…)?` — format inferred from `.png` / `.svg` extension.
+3. `.build()?` then `figure.save(path, SaveOptions::…)?` — format inferred from `.png`, `.svg`, or `.pdf` extension.
 
 Import everything common via `use mplot::prelude::*;`.
 
 ## Features
 
 - Subplot grids via `GridPos` or `GridSpec` (rowspan/colspan)
-- PNG and SVG export (`figure.save("out.svg", …)`)
+- PNG, SVG, and PDF export (`figure.save("out.pdf", …)`)
 - Constrained layout for multi-panel figures and colorbar insets (`.constrained_layout(true)`)
 - Linear and log *y* scales (`Scale::Log`)
 - Custom tick labels (`AxesStyle::x_tick_labels`)
@@ -86,4 +86,4 @@ Import everything common via `use mplot::prelude::*;`.
 
 ## Status
 
-Early development. Line, boxplot, bar, histogram, fill-between, image, and contour series are supported with legend, markers, and colormaps. PNG/SVG export and GridSpec layouts are available; PDF export is planned.
+Early development. Line, boxplot, bar, histogram, fill-between, image, and contour series are supported with legend, markers, and colormaps. PNG, SVG, and PDF export plus GridSpec layouts are available.

@@ -17,9 +17,10 @@ impl fmt::Display for Error {
             Error::EmptyFigure => write!(f, "figure has no panels"),
             Error::InvalidSubplotIndex => write!(f, "invalid subplot index"),
             Error::InvalidFigureSize => write!(f, "figure size must be positive"),
-            Error::UnsupportedFormat => {
-                write!(f, "unsupported export format; use .png, .svg, or set SaveOptions::format")
-            }
+            Error::UnsupportedFormat => write!(
+                f,
+                "unsupported export format; use .png, .svg, .pdf, or set SaveOptions::format"
+            ),
             Error::RenderFailed(msg) => write!(f, "{msg}"),
             Error::Io(msg) => write!(f, "{msg}"),
         }
