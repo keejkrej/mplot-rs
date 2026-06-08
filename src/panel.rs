@@ -1,7 +1,10 @@
 use crate::as_vector::{vector_to_f64, AsVector};
+use crate::gridspec::SubplotSlot;
 use num_traits::{Num, NumCast};
 
 /// Subplot address in a grid (1-based index, matplotlib convention).
+///
+/// Prefer [`GridSpec`](crate::gridspec::GridSpec) for irregular layouts with rowspan/colspan.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct GridPos {
     rows: usize,
@@ -24,6 +27,16 @@ impl GridPos {
 
     pub fn index(&self) -> usize {
         self.index
+    }
+
+    pub fn to_slot(&self) -> SubplotSlot {
+        SubplotSlot::from_index(self.rows, self.cols, self.index)
+    }
+}
+
+impl From<GridPos> for SubplotSlot {
+    fn from(pos: GridPos) -> Self {
+        pos.to_slot()
     }
 }
 
@@ -219,7 +232,7 @@ impl AxesStyle {
 /// One subplot's content before compilation.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct PanelSpec {
-    pub pos: GridPos,
+    pub slot: SubplotSlot,
     pub axes: AxesStyle,
     pub series: Vec<crate::series::Series>,
 }

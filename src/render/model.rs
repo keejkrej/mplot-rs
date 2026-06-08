@@ -3,6 +3,20 @@ use crate::panel::TickLabels;
 use crate::color::Color;
 use crate::series::{LineDash, Marker};
 
+/// Layout insets applied during rendering (constrained layout).
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct PanelLayout {
+    pub right_inset_frac: f64,
+}
+
+impl PanelLayout {
+    pub fn with_colorbar_inset() -> Self {
+        PanelLayout {
+            right_inset_frac: 0.12,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct LineSeries {
     pub x: Vec<f64>,
@@ -100,9 +114,12 @@ pub enum CompiledSeries {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct CompiledPanel {
-    pub rows: usize,
-    pub cols: usize,
-    pub index: usize,
+    pub grid_rows: usize,
+    pub grid_cols: usize,
+    pub row: usize,
+    pub col: usize,
+    pub rowspan: usize,
+    pub colspan: usize,
     pub title: Option<String>,
     pub xlabel: Option<String>,
     pub ylabel: Option<String>,
@@ -115,6 +132,7 @@ pub struct CompiledPanel {
     pub ticks_x: Option<TickLabels>,
     pub ticks_y: Option<TickLabels>,
     pub show_legend: bool,
+    pub layout: PanelLayout,
     pub series: Vec<CompiledSeries>,
 }
 
@@ -130,5 +148,6 @@ pub struct CompiledFigure {
     pub title_fontsize: f64,
     pub save_tight: bool,
     pub save_pad_inches: Option<f64>,
+    pub constrained_layout: bool,
     pub panels: Vec<CompiledPanel>,
 }

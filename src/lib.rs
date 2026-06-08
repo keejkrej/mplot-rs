@@ -44,6 +44,7 @@ mod compile;
 mod constants;
 mod error;
 mod figure;
+mod gridspec;
 mod panel;
 mod render;
 mod scale;
@@ -54,7 +55,8 @@ pub mod prelude {
     pub use crate::color::Color;
     pub use crate::colormap::{Colormap, Normalize};
     pub use crate::error::{Error, Result};
-    pub use crate::figure::{Figure, FigureBuilder, SaveOptions, Size};
+    pub use crate::figure::{ExportFormat, Figure, FigureBuilder, SaveOptions, Size};
+    pub use crate::gridspec::{GridSpec, SubplotSlot};
     pub use crate::panel::{AxesStyle, GridPos, LegendStyle, TickLabels};
     pub use crate::series::{
         BarStyle, BoxplotStyle, ContourStyle, FillBetweenStyle, HistStyle, ImageStyle, LineDash,

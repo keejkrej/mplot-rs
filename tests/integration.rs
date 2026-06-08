@@ -243,3 +243,84 @@ fn test_image() -> Result<()> {
     assert!(metadata.len() > 1_000);
     Ok(())
 }
+
+#[test]
+fn test_svg_export() -> Result<()> {
+    std::fs::create_dir_all(OUT_DIR).ok();
+
+    let x = [0.0, 1.0, 2.0];
+    let y = [0.0, 1.0, 4.0];
+    let figure = Figure::builder()
+        .panel(GridPos::new(1, 1, 1), |p| {
+            p.line(&x, &y, LineStyle::new())
+                .axes(AxesStyle::new().title("svg export"));
+        })
+        .build()?;
+
+    let path = Path::new(OUT_DIR).join("test_export.svg");
+    figure.save(&path, SaveOptions::default())?;
+
+    let metadata = std::fs::metadata(path).map_err(|_| Error::Io("output missing".into()))?;
+    assert!(metadata.len() > 500);
+    Ok(())
+}
+
+#[test]
+fn test_gridspec_span() -> Result<()> {
+    std::fs::create_dir_all(OUT_DIR).ok();
+
+    let gs = GridSpec::new(2, 2);
+    let x = [0.0, 1.0, 2.0];
+    let y = [1.0, 2.0, 3.0];
+
+    let figure = Figure::builder()
+        .panel(gs.at(0, 0), |p| {
+            p.line(&x, &y, LineStyle::new())
+                .axes(AxesStyle::new().title("A"));
+        })
+        .panel(gs.span(0, 1, 1, 2), |p| {
+            p.bar(
+                &[1.0, 2.0],
+                &[3.0, 5.0],
+                BarStyle::new().color(Color::TABLEAU[0]),
+            )
+            .axes(AxesStyle::new().title("wide panel"));
+        })
+        .build()?;
+
+    let path = Path::new(OUT_DIR).join("test_gridspec_span.png");
+    figure.save(&path, SaveOptions::default())?;
+
+    let metadata = std::fs::metadata(path).map_err(|_| Error::Io("output missing".into()))?;
+    assert!(metadata.len() > 1_000);
+    Ok(())
+}
+
+#[test]
+fn test_constrained_colorbar() -> Result<()> {
+    std::fs::create_dir_all(OUT_DIR).ok();
+
+    let data = vec![0.0, 0.5, 1.0, 0.25, 0.75, 1.0, 0.0, 0.5, 1.0];
+    let figure = Figure::builder()
+        .constrained_layout(true)
+        .panel(GridPos::new(1, 1, 1), |p| {
+            p.image(
+                data,
+                3,
+                3,
+                ImageStyle::new()
+                    .extent(0.0, 3.0, 0.0, 3.0)
+                    .colormap(Colormap::Viridis)
+                    .colorbar(true),
+            )
+            .axes(AxesStyle::new().title("constrained colorbar"));
+        })
+        .build()?;
+
+    let path = Path::new(OUT_DIR).join("test_constrained_colorbar.png");
+    figure.save(&path, SaveOptions::default())?;
+
+    let metadata = std::fs::metadata(path).map_err(|_| Error::Io("output missing".into()))?;
+    assert!(metadata.len() > 1_000);
+    Ok(())
+}

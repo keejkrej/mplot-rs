@@ -1,4 +1,3 @@
-use plotters::backend::BitMapBackend;
 use plotters::coord::types::RangedCoordf64;
 use plotters::element::{PathElement, Rectangle, Text};
 use plotters::prelude::*;
@@ -9,7 +8,7 @@ use crate::render::model::{CompiledSeries, LineSeries};
 use crate::render::mpl_style::{MPL_FONT, MPL_SPINE};
 use crate::series::LineDash;
 
-type Chart<'a> = ChartContext<'a, BitMapBackend<'a>, Cartesian2d<RangedCoordf64, RangedCoordf64>>;
+type Chart<'a, DB> = ChartContext<'a, DB, Cartesian2d<RangedCoordf64, RangedCoordf64>>;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct LegendEntry {
@@ -68,8 +67,8 @@ fn entry_from_line(curve: &LineSeries) -> LegendEntry {
     }
 }
 
-pub fn draw_legend(
-    chart: &mut Chart<'_>,
+pub fn draw_legend<DB: DrawingBackend>(
+    chart: &mut Chart<'_, DB>,
     entries: &[LegendEntry],
     font_px: i32,
     xmin: f64,
@@ -142,8 +141,8 @@ pub fn draw_legend(
     Ok(())
 }
 
-fn draw_legend_patch(
-    chart: &mut Chart<'_>,
+fn draw_legend_patch<DB: DrawingBackend>(
+    chart: &mut Chart<'_, DB>,
     entry: &LegendEntry,
     x0: f64,
     x1: f64,
@@ -164,8 +163,8 @@ fn draw_legend_patch(
     Ok(())
 }
 
-fn draw_legend_line(
-    chart: &mut Chart<'_>,
+fn draw_legend_line<DB: DrawingBackend>(
+    chart: &mut Chart<'_, DB>,
     entry: &LegendEntry,
     x0: f64,
     x1: f64,

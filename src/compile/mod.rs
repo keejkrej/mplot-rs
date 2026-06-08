@@ -4,15 +4,16 @@ use crate::panel::PanelSpec;
 use crate::colormap::Normalize;
 use crate::render::model::{
     BarSeries, BoxplotSeries, CompiledFigure, CompiledPanel, CompiledSeries, ContourSeries,
-    FillBetweenSeries, HistSeries, ImageSeries, LineSeries, TextSeries,
+    FillBetweenSeries, HistSeries, ImageSeries, LineSeries, PanelLayout, TextSeries,
 };
 use crate::series::{Scale, Series};
 
 pub fn build(figure: &Figure, options: &SaveOptions) -> Result<CompiledFigure, Error> {
+    let constrained = figure.constrained_layout();
     let panels = figure
         .panels()
         .iter()
-        .map(compile_panel)
+        .map(|panel| compile_panel(panel, constrained))
         .collect();
 
     Ok(CompiledFigure {
@@ -26,16 +27,32 @@ pub fn build(figure: &Figure, options: &SaveOptions) -> Result<CompiledFigure, E
         title_fontsize: figure.title_fontsize(),
         save_tight: options.tight_value(),
         save_pad_inches: options.pad_inches_value(),
+        constrained_layout: constrained,
         panels,
     })
 }
 
-fn compile_panel(panel: &PanelSpec) -> CompiledPanel {
+fn compile_panel(panel: &PanelSpec, constrained_layout: bool) -> CompiledPanel {
     let axes = &panel.axes;
+    let slot = panel.slot;
+    let has_colorbar = panel.series.iter().any(|series| match series {
+        Series::Image { style, .. } => style.show_colorbar_value(),
+        Series::Contour { style, .. } => style.show_colorbar_value(),
+        _ => false,
+    });
+    let layout = if constrained_layout && has_colorbar {
+        PanelLayout::with_colorbar_inset()
+    } else {
+        PanelLayout::default()
+    };
+
     CompiledPanel {
-        rows: panel.pos.rows(),
-        cols: panel.pos.cols(),
-        index: panel.pos.index(),
+        grid_rows: slot.grid_rows(),
+        grid_cols: slot.grid_cols(),
+        row: slot.row(),
+        col: slot.col(),
+        rowspan: slot.rowspan(),
+        colspan: slot.colspan(),
         title: axes.title_value().map(str::to_string),
         xlabel: axes.x_label_value().map(str::to_string),
         ylabel: axes.y_label_value().map(str::to_string),
@@ -48,6 +65,7 @@ fn compile_panel(panel: &PanelSpec) -> CompiledPanel {
         ticks_x: axes.x_ticks_value().cloned(),
         ticks_y: axes.y_ticks_value().cloned(),
         show_legend: axes.legend_value().show,
+        layout,
         series: panel.series.iter().map(compile_series).collect(),
     }
 }

@@ -361,9 +361,12 @@ mod tests {
 
     fn sample_panel(log_x: bool, log_y: bool) -> CompiledPanel {
         CompiledPanel {
-            rows: 1,
-            cols: 1,
-            index: 1,
+            grid_rows: 1,
+            grid_cols: 1,
+            row: 0,
+            col: 0,
+            rowspan: 1,
+            colspan: 1,
             title: None,
             xlabel: None,
             ylabel: None,
@@ -376,6 +379,7 @@ mod tests {
             ticks_x: None,
             ticks_y: None,
             show_legend: false,
+            layout: Default::default(),
             series: vec![CompiledSeries::Line(LineSeries {
                 x: vec![1.0, 10.0, 100.0],
                 y: vec![10.0, 100.0, 1000.0],

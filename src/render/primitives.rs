@@ -1,4 +1,3 @@
-use plotters::backend::BitMapBackend;
 use plotters::coord::types::RangedCoordf64;
 use plotters::element::{Circle, PathElement, Rectangle, Text};
 use plotters::prelude::*;
@@ -15,10 +14,10 @@ use crate::render::mpl_style::{MPL_FONT, MPL_LINE_WIDTH, MPL_MARKER_SIZE};
 use crate::render::scene::{box_positions, box_stats, default_box_width};
 use crate::series::{LineDash, Marker};
 
-type Chart<'a> = ChartContext<'a, BitMapBackend<'a>, Cartesian2d<RangedCoordf64, RangedCoordf64>>;
+type Chart<'a, DB> = ChartContext<'a, DB, Cartesian2d<RangedCoordf64, RangedCoordf64>>;
 
-pub fn draw_series(
-    chart: &mut Chart<'_>,
+pub fn draw_series<DB: DrawingBackend>(
+    chart: &mut Chart<'_, DB>,
     series: &CompiledSeries,
     scales: PanelScales,
     tick_fontsize_px: f64,
@@ -35,8 +34,8 @@ pub fn draw_series(
     }
 }
 
-pub fn draw_colorbar(
-    chart: &mut Chart<'_>,
+pub fn draw_colorbar<DB: DrawingBackend>(
+    chart: &mut Chart<'_, DB>,
     normalize: Normalize,
     colormap: Colormap,
     xmin: f64,
@@ -78,7 +77,7 @@ pub fn draw_colorbar(
     Ok(())
 }
 
-fn draw_curve(chart: &mut Chart<'_>, curve: &LineSeries, scales: PanelScales) -> Result<(), &'static str> {
+fn draw_curve<DB: DrawingBackend>(chart: &mut Chart<'_, DB>, curve: &LineSeries, scales: PanelScales) -> Result<(), &'static str> {
     if curve.x.len() != curve.y.len() || curve.x.is_empty() {
         return Ok(());
     }
@@ -121,8 +120,8 @@ fn draw_curve(chart: &mut Chart<'_>, curve: &LineSeries, scales: PanelScales) ->
     draw_markers(chart, &points, curve.marker, rgb)
 }
 
-fn draw_markers(
-    chart: &mut Chart<'_>,
+fn draw_markers<DB: DrawingBackend>(
+    chart: &mut Chart<'_, DB>,
     points: &[(f64, f64)],
     marker: Marker,
     color: RGBColor,
@@ -173,7 +172,7 @@ fn draw_markers(
     Ok(())
 }
 
-fn draw_bar(chart: &mut Chart<'_>, bar: &BarSeries, scales: PanelScales) -> Result<(), &'static str> {
+fn draw_bar<DB: DrawingBackend>(chart: &mut Chart<'_, DB>, bar: &BarSeries, scales: PanelScales) -> Result<(), &'static str> {
     let rgb = bar.color.to_rgb();
     let half = bar.width / 2.0;
     let y_base = scales.y.data_to_axis(bar.baseline);
@@ -196,7 +195,7 @@ fn draw_bar(chart: &mut Chart<'_>, bar: &BarSeries, scales: PanelScales) -> Resu
     Ok(())
 }
 
-fn draw_histogram(chart: &mut Chart<'_>, hist: &HistSeries, scales: PanelScales) -> Result<(), &'static str> {
+fn draw_histogram<DB: DrawingBackend>(chart: &mut Chart<'_, DB>, hist: &HistSeries, scales: PanelScales) -> Result<(), &'static str> {
     let (edges, counts) = histogram_bins(&hist.data, hist.bins);
     if counts.is_empty() {
         return Ok(());
@@ -244,8 +243,8 @@ fn histogram_bins(data: &[f64], bins: usize) -> (Vec<f64>, Vec<f64>) {
     (edges, counts)
 }
 
-fn draw_fill_between(
-    chart: &mut Chart<'_>,
+fn draw_fill_between<DB: DrawingBackend>(
+    chart: &mut Chart<'_, DB>,
     fill: &FillBetweenSeries,
     scales: PanelScales,
 ) -> Result<(), &'static str> {
@@ -281,7 +280,7 @@ fn draw_fill_between(
     Ok(())
 }
 
-fn draw_image(chart: &mut Chart<'_>, image: &ImageSeries, scales: PanelScales) -> Result<(), &'static str> {
+fn draw_image<DB: DrawingBackend>(chart: &mut Chart<'_, DB>, image: &ImageSeries, scales: PanelScales) -> Result<(), &'static str> {
     let (x0, x1, y0, y1) = image.extent;
     let ax_x0 = scales.x.data_to_axis(x0);
     let ax_x1 = scales.x.data_to_axis(x1);
@@ -320,7 +319,7 @@ fn draw_image(chart: &mut Chart<'_>, image: &ImageSeries, scales: PanelScales) -
     Ok(())
 }
 
-fn draw_contour(chart: &mut Chart<'_>, contour: &ContourSeries, scales: PanelScales) -> Result<(), &'static str> {
+fn draw_contour<DB: DrawingBackend>(chart: &mut Chart<'_, DB>, contour: &ContourSeries, scales: PanelScales) -> Result<(), &'static str> {
     let (x0, x1, y0, y1) = contour.extent;
     let w = contour.width;
     let h = contour.height;
@@ -340,8 +339,8 @@ fn draw_contour(chart: &mut Chart<'_>, contour: &ContourSeries, scales: PanelSca
     Ok(())
 }
 
-fn draw_contour_level<F>(
-    chart: &mut Chart<'_>,
+fn draw_contour_level<DB: DrawingBackend, F>(
+    chart: &mut Chart<'_, DB>,
     contour: &ContourSeries,
     scales: PanelScales,
     x0: f64,
@@ -435,8 +434,8 @@ fn marching_squares_segments(
     segments
 }
 
-fn draw_text(
-    chart: &mut Chart<'_>,
+fn draw_text<DB: DrawingBackend>(
+    chart: &mut Chart<'_, DB>,
     text: &TextSeries,
     scales: PanelScales,
     tick_fontsize_px: f64,
@@ -464,8 +463,8 @@ use crate::render::mpl_style::{
     MPL_MEDIAN_LINE_WIDTH, MPL_WHISKER_LINE_WIDTH,
 };
 
-pub fn draw_boxplot(
-    chart: &mut Chart<'_>,
+pub fn draw_boxplot<DB: DrawingBackend>(
+    chart: &mut Chart<'_, DB>,
     boxes: &BoxplotSeries,
     scales: PanelScales,
 ) -> Result<(), &'static str> {
@@ -505,8 +504,8 @@ pub fn draw_boxplot(
     Ok(())
 }
 
-fn draw_vertical_box(
-    chart: &mut Chart<'_>,
+fn draw_vertical_box<DB: DrawingBackend>(
+    chart: &mut Chart<'_, DB>,
     scales: PanelScales,
     pos: f64,
     width: f64,
@@ -580,8 +579,8 @@ fn draw_vertical_box(
     Ok(())
 }
 
-fn draw_horizontal_box(
-    chart: &mut Chart<'_>,
+fn draw_horizontal_box<DB: DrawingBackend>(
+    chart: &mut Chart<'_, DB>,
     scales: PanelScales,
     pos: f64,
     width: f64,
@@ -655,8 +654,8 @@ fn draw_horizontal_box(
     Ok(())
 }
 
-fn draw_box_rect(
-    chart: &mut Chart<'_>,
+fn draw_box_rect<DB: DrawingBackend>(
+    chart: &mut Chart<'_, DB>,
     patch_artist: bool,
     x0: f64,
     x1: f64,

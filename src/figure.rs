@@ -6,8 +6,8 @@ use crate::constants::{
     DEFAULT_HORIZONTAL_GAP, DEFAULT_TICK_FONT_SIZE, DEFAULT_VERTICAL_GAP,
 };
 use crate::error::{Error, Result};
-use crate::panel::{configure_panel, AxesStyle, GridPos, PanelBuilder, PanelSpec};
-use crate::render::png;
+use crate::panel::{configure_panel, AxesStyle, PanelBuilder, PanelSpec};
+use crate::gridspec::SubplotSlot;
 
 /// Figure dimensions.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -39,12 +39,35 @@ impl Default for Size {
     }
 }
 
+/// Output format for [`Figure::save`].
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ExportFormat {
+    #[default]
+    Png,
+    Svg,
+    Pdf,
+}
+
+impl ExportFormat {
+    pub fn from_path(path: &Path) -> Option<Self> {
+        path.extension()
+            .and_then(|ext| ext.to_str())
+            .and_then(|ext| match ext.to_ascii_lowercase().as_str() {
+                "png" => Some(ExportFormat::Png),
+                "svg" => Some(ExportFormat::Svg),
+                "pdf" => Some(ExportFormat::Pdf),
+                _ => None,
+            })
+    }
+}
+
 /// Options passed to [`Figure::save`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SaveOptions {
     dpi: u32,
     tight: bool,
     pad_inches: Option<f64>,
+    format: Option<ExportFormat>,
 }
 
 impl Default for SaveOptions {
@@ -53,6 +76,7 @@ impl Default for SaveOptions {
             dpi: DEFAULT_DPI,
             tight: true,
             pad_inches: None,
+            format: None,
         }
     }
 }
@@ -77,6 +101,11 @@ impl SaveOptions {
         self
     }
 
+    pub fn format(mut self, format: ExportFormat) -> Self {
+        self.format = Some(format);
+        self
+    }
+
     pub(crate) fn dpi_value(&self) -> u32 {
         self.dpi
     }
@@ -87,6 +116,17 @@ impl SaveOptions {
 
     pub(crate) fn pad_inches_value(&self) -> Option<f64> {
         self.pad_inches
+    }
+
+    pub(crate) fn format_value(&self) -> Option<ExportFormat> {
+        self.format
+    }
+
+    pub(crate) fn resolve_format(&self, path: &Path) -> crate::error::Result<ExportFormat> {
+        if let Some(format) = self.format {
+            return Ok(format);
+        }
+        ExportFormat::from_path(path).ok_or(Error::UnsupportedFormat)
     }
 }
 
@@ -99,6 +139,7 @@ pub struct Figure {
     label_fontsize: f64,
     tick_fontsize: f64,
     title_fontsize: f64,
+    constrained_layout: bool,
     panels: Vec<PanelSpec>,
 }
 
@@ -111,8 +152,11 @@ impl Figure {
         if self.panels.is_empty() {
             return Err(Error::EmptyFigure);
         }
+        let path = path.as_ref();
+        let format = options.resolve_format(path)?;
         let compiled = compile::build(self, &options)?;
-        png::render(&compiled, path.as_ref()).map_err(Error::RenderFailed)
+        crate::render::export::render(&compiled, path, format)?;
+        Ok(())
     }
 
     pub(crate) fn size(&self) -> Size {
@@ -139,6 +183,10 @@ impl Figure {
         self.title_fontsize
     }
 
+    pub(crate) fn constrained_layout(&self) -> bool {
+        self.constrained_layout
+    }
+
     pub(crate) fn panels(&self) -> &[PanelSpec] {
         &self.panels
     }
@@ -153,6 +201,7 @@ pub struct FigureBuilder {
     label_fontsize: f64,
     tick_fontsize: f64,
     title_fontsize: f64,
+    constrained_layout: bool,
     panels: Vec<PanelSpec>,
 }
 
@@ -165,6 +214,7 @@ impl FigureBuilder {
             label_fontsize: DEFAULT_FONT_SIZE,
             tick_fontsize: DEFAULT_TICK_FONT_SIZE,
             title_fontsize: DEFAULT_FONT_SIZE,
+            constrained_layout: false,
             panels: Vec::new(),
         }
     }
@@ -196,12 +246,18 @@ impl FigureBuilder {
         self
     }
 
-    pub fn panel<F>(mut self, pos: GridPos, f: F) -> Self
+    pub fn constrained_layout(mut self, enabled: bool) -> Self {
+        self.constrained_layout = enabled;
+        self
+    }
+
+    pub fn panel<F, S>(mut self, slot: S, f: F) -> Self
     where
+        S: Into<SubplotSlot>,
         F: FnOnce(&mut PanelBuilder<'_>),
     {
         let mut spec = PanelSpec {
-            pos,
+            slot: slot.into(),
             axes: AxesStyle::default(),
             series: Vec::new(),
         };
@@ -221,6 +277,7 @@ impl FigureBuilder {
             label_fontsize: self.label_fontsize,
             tick_fontsize: self.tick_fontsize,
             title_fontsize: self.title_fontsize,
+            constrained_layout: self.constrained_layout,
             panels: self.panels,
         })
     }

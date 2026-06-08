@@ -47,3 +47,7 @@ path = "examples/gallery.rs"
 [[example]]
 name = "bar_histogram"
 path = "examples/bar_histogram.rs"
+
+[[example]]
+name = "gridspec_layout"
+path = "examples/gridspec_layout.rs"
