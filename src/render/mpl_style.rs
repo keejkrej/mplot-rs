@@ -83,10 +83,14 @@ pub fn marker_radius_px(size_pt: f64, dpi: u32) -> i32 {
 }
 
 /// Left label area sized from tick font, tick padding, and y-axis label pad.
+///
+/// Width scales with tick fontsize so multi-digit y-tick labels (and larger
+/// consumer fonts such as transfection's 17–18 pt) stay inside the panel.
 pub fn label_area_left_px(tick_fontsize: f64, dpi: u32) -> u32 {
     let tick_px = pt_to_px(tick_fontsize.max(MPL_TICK_FONT_SIZE * 0.5), dpi);
     let pad_px = pt_to_px(MPL_XTICK_MAJOR_PAD + MPL_LABEL_PAD, dpi);
-    (tick_px * 2.2 + pad_px + chart_margin_px(dpi) as f64).round() as u32
+    // ~5–6 character tick labels + room for the rotated y-axis label.
+    (tick_px * 5.0 + pad_px + chart_margin_px(dpi) as f64).round() as u32
 }
 
 /// Bottom label area sized from axis/tick fonts, tick marks, and label pad.
@@ -95,12 +99,12 @@ pub fn label_area_bottom_px(label_fontsize: f64, tick_fontsize: f64, dpi: u32) -
     let tick_px = pt_to_px(tick_fontsize.max(MPL_TICK_FONT_SIZE * 0.5), dpi);
     let tick_mark = tick_size_px(dpi) as f64;
     let pad_px = pt_to_px(MPL_XTICK_MAJOR_PAD + MPL_LABEL_PAD, dpi);
-    (label_px * 0.35 + tick_px + tick_mark + pad_px + chart_margin_px(dpi) as f64).round() as u32
+    (label_px * 1.15 + tick_px + tick_mark + pad_px + chart_margin_px(dpi) as f64).round() as u32
 }
 
-/// Extra top margin for panel titles (`axes.titlepad`).
+/// Extra top margin for panel titles (`axes.titlepad` + title height).
 pub fn title_pad_px(title_fontsize: f64, dpi: u32) -> i32 {
     let title_px = pt_to_px(title_fontsize.max(MPL_FONT_SIZE * 0.5), dpi);
     let pad_px = pt_to_px(MPL_TITLE_PAD, dpi);
-    (pad_px * 0.5 + title_px * 0.1).round() as i32
+    (pad_px + title_px * 0.95).round() as i32
 }

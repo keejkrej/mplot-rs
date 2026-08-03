@@ -18,15 +18,25 @@ use crate::series::{LineDash, Marker};
 
 type Chart<'a, DB> = ChartContext<'a, DB, Cartesian2d<RangedCoordf64, RangedCoordf64>>;
 
+/// Axis-space rectangle used to clip series so artists cannot paint over spines.
+#[derive(Clone, Copy, Debug)]
+pub struct ClipRect {
+    pub xmin: f64,
+    pub xmax: f64,
+    pub ymin: f64,
+    pub ymax: f64,
+}
+
 pub fn draw_series<DB: DrawingBackend>(
     chart: &mut Chart<'_, DB>,
     series: &CompiledSeries,
     scales: PanelScales,
     tick_fontsize_px: f64,
     dpi: u32,
+    clip: ClipRect,
 ) -> Result<(), &'static str> {
     match series {
-        CompiledSeries::Line(curve) => draw_curve(chart, curve, scales, dpi),
+        CompiledSeries::Line(curve) => draw_curve(chart, curve, scales, dpi, clip),
         CompiledSeries::Boxplot(boxes) => draw_boxplot(chart, boxes, scales, dpi),
         CompiledSeries::Bar(bar) => draw_bar(chart, bar, scales, dpi),
         CompiledSeries::Histogram(hist) => draw_histogram(chart, hist, scales, dpi),
@@ -86,6 +96,7 @@ fn draw_curve<DB: DrawingBackend>(
     curve: &LineSeries,
     scales: PanelScales,
     dpi: u32,
+    clip: ClipRect,
 ) -> Result<(), &'static str> {
     if curve.x.len() != curve.y.len() || curve.x.is_empty() {
         return Ok(());
@@ -110,23 +121,127 @@ fn draw_curve<DB: DrawingBackend>(
         stroke_width,
     };
 
-    if points.len() >= 2 {
+    // Clip to axes so out-of-range traces cannot paint over spines/labels
+    // (matplotlib default clip_on=True).
+    let clipped = clip_polyline(&points, clip);
+    for segment in &clipped {
+        if segment.len() < 2 {
+            continue;
+        }
         match curve.dash {
             LineDash::Dashed => chart
-                .draw_series(DashedLineSeries::new(points.clone(), 5, 5, style))
+                .draw_series(DashedLineSeries::new(segment.clone(), 5, 5, style))
                 .map_err(|_| "failed to draw curve")?,
             LineDash::DashDot => chart
-                .draw_series(DashedLineSeries::new(points.clone(), 8, 4, style))
+                .draw_series(DashedLineSeries::new(segment.clone(), 8, 4, style))
                 .map_err(|_| "failed to draw curve")?,
             LineDash::Dotted => chart
-                .draw_series(DashedLineSeries::new(points.clone(), 1, 3, style))
+                .draw_series(DashedLineSeries::new(segment.clone(), 1, 3, style))
                 .map_err(|_| "failed to draw curve")?,
             LineDash::Solid => chart
-                .draw_series(PlotLineSeries::new(points.clone(), style))
+                .draw_series(PlotLineSeries::new(segment.clone(), style))
                 .map_err(|_| "failed to draw curve")?,
         };
     }
-    draw_markers(chart, &points, curve.marker, rgb, dpi)
+    let markers: Vec<(f64, f64)> = points
+        .into_iter()
+        .filter(|(x, y)| point_in_clip(*x, *y, clip))
+        .collect();
+    draw_markers(chart, &markers, curve.marker, rgb, dpi)
+}
+
+fn point_in_clip(x: f64, y: f64, clip: ClipRect) -> bool {
+    x >= clip.xmin && x <= clip.xmax && y >= clip.ymin && y <= clip.ymax
+}
+
+/// Liang–Barsky segment clip against an axis-aligned rectangle.
+fn clip_segment(
+    x0: f64,
+    y0: f64,
+    x1: f64,
+    y1: f64,
+    clip: ClipRect,
+) -> Option<((f64, f64), (f64, f64))> {
+    let dx = x1 - x0;
+    let dy = y1 - y0;
+    let mut t0 = 0.0;
+    let mut t1 = 1.0;
+    let edges = [
+        (-dx, x0 - clip.xmin),
+        (dx, clip.xmax - x0),
+        (-dy, y0 - clip.ymin),
+        (dy, clip.ymax - y0),
+    ];
+    for (p, q) in edges {
+        if p.abs() < f64::EPSILON {
+            if q < 0.0 {
+                return None;
+            }
+            continue;
+        }
+        let r = q / p;
+        if p < 0.0 {
+            if r > t1 {
+                return None;
+            }
+            if r > t0 {
+                t0 = r;
+            }
+        } else {
+            if r < t0 {
+                return None;
+            }
+            if r < t1 {
+                t1 = r;
+            }
+        }
+    }
+    Some((
+        (x0 + t0 * dx, y0 + t0 * dy),
+        (x0 + t1 * dx, y0 + t1 * dy),
+    ))
+}
+
+/// Clip a polyline to the axes box; may split into multiple visible segments.
+fn clip_polyline(points: &[(f64, f64)], clip: ClipRect) -> Vec<Vec<(f64, f64)>> {
+    if points.is_empty() {
+        return Vec::new();
+    }
+    let mut out: Vec<Vec<(f64, f64)>> = Vec::new();
+    let mut current: Vec<(f64, f64)> = Vec::new();
+
+    let push_current = |current: &mut Vec<(f64, f64)>, out: &mut Vec<Vec<(f64, f64)>>| {
+        if current.len() >= 2 {
+            out.push(std::mem::take(current));
+        } else {
+            current.clear();
+        }
+    };
+
+    for window in points.windows(2) {
+        let (x0, y0) = window[0];
+        let (x1, y1) = window[1];
+        let Some(((cx0, cy0), (cx1, cy1))) = clip_segment(x0, y0, x1, y1, clip) else {
+            push_current(&mut current, &mut out);
+            continue;
+        };
+        if current.is_empty() {
+            current.push((cx0, cy0));
+            current.push((cx1, cy1));
+        } else {
+            let last = *current.last().unwrap();
+            // Continue segment if this piece attaches to the open polyline.
+            if (last.0 - cx0).abs() <= 1e-9 && (last.1 - cy0).abs() <= 1e-9 {
+                current.push((cx1, cy1));
+            } else {
+                push_current(&mut current, &mut out);
+                current.push((cx0, cy0));
+                current.push((cx1, cy1));
+            }
+        }
+    }
+    push_current(&mut current, &mut out);
+    out
 }
 
 fn draw_markers<DB: DrawingBackend>(
@@ -753,5 +868,50 @@ mod tests {
         assert_eq!(edges.len(), 3);
         assert_eq!(counts.len(), 2);
         assert!((counts[0] + counts[1] - 4.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn clip_segment_keeps_interior() {
+        let clip = ClipRect {
+            xmin: 0.0,
+            xmax: 10.0,
+            ymin: 0.0,
+            ymax: 10.0,
+        };
+        let ((x0, y0), (x1, y1)) = clip_segment(1.0, 1.0, 9.0, 9.0, clip).unwrap();
+        assert!((x0 - 1.0).abs() < 1e-9 && (y0 - 1.0).abs() < 1e-9);
+        assert!((x1 - 9.0).abs() < 1e-9 && (y1 - 9.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn clip_segment_trims_outside() {
+        let clip = ClipRect {
+            xmin: 0.0,
+            xmax: 1.0,
+            ymin: 0.0,
+            ymax: 1.0,
+        };
+        let ((x0, y0), (x1, y1)) = clip_segment(-1.0, 0.5, 2.0, 0.5, clip).unwrap();
+        assert!((x0 - 0.0).abs() < 1e-9 && (y0 - 0.5).abs() < 1e-9);
+        assert!((x1 - 1.0).abs() < 1e-9 && (y1 - 0.5).abs() < 1e-9);
+    }
+
+    #[test]
+    fn clip_polyline_splits_on_exit() {
+        let clip = ClipRect {
+            xmin: 0.0,
+            xmax: 1.0,
+            ymin: 0.0,
+            ymax: 1.0,
+        };
+        // Goes out of range between segments, then returns.
+        let points = [(0.2, 0.2), (0.5, 0.5), (2.0, 2.0), (0.8, 0.2)];
+        let segs = clip_polyline(&points, clip);
+        assert!(segs.len() >= 2);
+        for seg in &segs {
+            for &(x, y) in seg {
+                assert!(point_in_clip(x, y, clip));
+            }
+        }
     }
 }

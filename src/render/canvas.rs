@@ -16,7 +16,7 @@ use crate::render::mpl_style::{
     tick_size_px, title_pad_px, MPL_AXES_LINE_WIDTH, MPL_FONT, MPL_GRID, MPL_SPINE,
     MPL_XTICK_MAJOR_WIDTH,
 };
-use crate::render::primitives::{draw_colorbar, draw_series};
+use crate::render::primitives::{draw_colorbar, draw_series, ClipRect};
 
 type Chart<'a, DB> = ChartContext<'a, DB, Cartesian2d<RangedCoordf64, RangedCoordf64>>;
 
@@ -196,11 +196,16 @@ fn draw_panel_in_area<DB: DrawingBackend>(
     }
 
     mesh.draw().map_err(|_| "failed to draw mesh")?;
-    draw_extra_spines(&mut chart, xmin, xmax, ymin, ymax, spine, figure.dpi)?;
 
+    let clip = ClipRect {
+        xmin,
+        xmax,
+        ymin,
+        ymax,
+    };
     let mut colorbar: Option<(Normalize, Colormap)> = None;
     for series in &panel.series {
-        draw_series(&mut chart, series, scales, tick_px, figure.dpi)?;
+        draw_series(&mut chart, series, scales, tick_px, figure.dpi, clip)?;
         match series {
             CompiledSeries::Image(image) if image.show_colorbar => {
                 colorbar = Some((image.normalize, image.colormap));
@@ -211,6 +216,9 @@ fn draw_panel_in_area<DB: DrawingBackend>(
             _ => {}
         }
     }
+
+    // Redraw the full frame after series so clipped stroke caps cannot erase spines.
+    draw_frame_spines(&mut chart, xmin, xmax, ymin, ymax, spine, figure.dpi)?;
 
     if let Some((normalize, colormap)) = colorbar {
         if bar_px > 0 {
@@ -265,7 +273,7 @@ fn draw_colorbar_in_area<DB: DrawingBackend>(
     Ok(())
 }
 
-fn draw_extra_spines<DB: DrawingBackend>(
+fn draw_frame_spines<DB: DrawingBackend>(
     chart: &mut Chart<'_, DB>,
     xmin: f64,
     xmax: f64,
@@ -277,8 +285,10 @@ fn draw_extra_spines<DB: DrawingBackend>(
     let style = spine.stroke_width(stroke_width_px(MPL_AXES_LINE_WIDTH, dpi));
     chart
         .draw_series([
-            PathElement::new(vec![(xmin, ymax), (xmax, ymax)], style),
-            PathElement::new(vec![(xmax, ymin), (xmax, ymax)], style),
+            PathElement::new(vec![(xmin, ymin), (xmax, ymin)], style), // bottom
+            PathElement::new(vec![(xmin, ymax), (xmax, ymax)], style), // top
+            PathElement::new(vec![(xmin, ymin), (xmin, ymax)], style), // left
+            PathElement::new(vec![(xmax, ymin), (xmax, ymax)], style), // right
         ])
         .map_err(|_| "failed to draw spines")?;
     Ok(())
