@@ -112,11 +112,11 @@ fn draw_curve<DB: DrawingBackend>(
         return Ok(());
     }
 
-    let rgb = curve.color.to_rgb();
     let width = if curve.width > 0.0 { curve.width } else { MPL_LINE_WIDTH };
     let stroke_width = stroke_width_px(width, dpi);
+    // Use true RGBA so overlapping traces darken (per-line alpha, not baked gray).
     let style = ShapeStyle {
-        color: rgb.to_rgba(),
+        color: curve.color.to_rgba(),
         filled: false,
         stroke_width,
     };
@@ -147,7 +147,7 @@ fn draw_curve<DB: DrawingBackend>(
         .into_iter()
         .filter(|(x, y)| point_in_clip(*x, *y, clip))
         .collect();
-    draw_markers(chart, &markers, curve.marker, rgb, dpi)
+    draw_markers(chart, &markers, curve.marker, curve.color, dpi)
 }
 
 fn point_in_clip(x: f64, y: f64, clip: ClipRect) -> bool {
@@ -248,7 +248,7 @@ fn draw_markers<DB: DrawingBackend>(
     chart: &mut Chart<'_, DB>,
     points: &[(f64, f64)],
     marker: Marker,
-    color: RGBColor,
+    color: crate::color::Color,
     dpi: u32,
 ) -> Result<(), &'static str> {
     if matches!(marker, Marker::None) {
@@ -419,12 +419,17 @@ fn draw_fill_between<DB: DrawingBackend>(
         return Ok(());
     }
     polygon.push(polygon[0]);
-    let rgb = fill.color.to_rgb();
+    // Prefer explicit fill.alpha when set; otherwise color's own alpha channel.
+    let fill_color = if fill.alpha < 1.0 {
+        fill.color.with_alpha(fill.alpha)
+    } else {
+        fill.color
+    };
     chart
         .draw_series(std::iter::once(PathElement::new(
             polygon,
             ShapeStyle {
-                color: rgb.to_rgba(),
+                color: fill_color.to_rgba(),
                 filled: true,
                 stroke_width: 0,
             },

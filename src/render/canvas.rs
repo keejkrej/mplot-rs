@@ -3,7 +3,7 @@ use plotters::coord::types::RangedCoordf64;
 use plotters::coord::Shift;
 use plotters::element::PathElement;
 use plotters::prelude::*;
-use plotters::style::{RGBColor, ShapeStyle};
+use plotters::style::RGBColor;
 
 use crate::axes::{data_bounds, format_axis_tick, tick_plan, view_limits, PanelScales};
 use crate::colormap::{Colormap, Normalize};
@@ -14,7 +14,6 @@ use crate::render::model::{CompiledFigure, CompiledPanel, CompiledSeries};
 use crate::render::mpl_style::{
     chart_margin_px, label_area_bottom_px, label_area_left_px, pt_to_px, stroke_width_px,
     tick_size_px, title_pad_px, MPL_AXES_LINE_WIDTH, MPL_FONT, MPL_GRID, MPL_SPINE,
-    MPL_XTICK_MAJOR_WIDTH,
 };
 use crate::render::primitives::{draw_colorbar, draw_series, ClipRect};
 
@@ -189,12 +188,9 @@ fn draw_panel_in_area<DB: DrawingBackend>(
         .x_label_style((MPL_FONT, label_px as i32))
         .y_label_style((MPL_FONT, label_px as i32))
         .label_style((MPL_FONT, tick_px as i32))
-        .bold_line_style(spine)
-        .axis_style(ShapeStyle {
-            color: spine.to_rgba(),
-            filled: false,
-            stroke_width: stroke_width_px(MPL_XTICK_MAJOR_WIDTH, figure.dpi),
-        })
+        // Axes box is drawn once after series (uniform width). Plotters' mesh
+        // would also stroke left/bottom, which made those sides look thicker.
+        .disable_axes()
         .set_all_tick_mark_size(tick_mark)
         .x_labels(ticks.x_count)
         .y_labels(ticks.y_count)
@@ -203,6 +199,8 @@ fn draw_panel_in_area<DB: DrawingBackend>(
 
     if panel.show_grid {
         mesh.light_line_style(RGBColor(MPL_GRID.0, MPL_GRID.1, MPL_GRID.2));
+        // Avoid a heavy zero-line / bold mesh on top of light grid.
+        mesh.bold_line_style(RGBColor(MPL_GRID.0, MPL_GRID.1, MPL_GRID.2));
     } else {
         mesh.disable_mesh();
     }

@@ -87,7 +87,7 @@ impl LineStyle {
     }
 
     pub fn alpha(mut self, alpha: f64) -> Self {
-        self.alpha = if alpha < 1e-14 { 1.0 } else { alpha };
+        self.alpha = alpha.clamp(0.0, 1.0);
         self
     }
 

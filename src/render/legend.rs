@@ -173,10 +173,9 @@ fn draw_legend_line<DB: DrawingBackend>(
     y: f64,
     dpi: u32,
 ) -> Result<(), &'static str> {
-    let rgb = entry.color.to_rgb();
     let stroke_width = stroke_width_px(entry.width, dpi);
     let style = ShapeStyle {
-        color: rgb.to_rgba(),
+        color: entry.color.to_rgba(),
         filled: false,
         stroke_width,
     };
