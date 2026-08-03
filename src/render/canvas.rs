@@ -67,14 +67,14 @@ pub fn render_figure<DB: DrawingBackend>(
             );
             area.fill(&RGBColor(255, 255, 255))
                 .map_err(|_| "failed to clear subplot")?;
-            draw_panel_in_area(figure, panel, &area, rect.width)?;
+            draw_panel_in_area(figure, panel, &area)?;
         }
     } else {
         for panel in &figure.panels {
             if panel.hide_axes && panel.series.is_empty() {
                 continue;
             }
-            draw_panel_in_area(figure, panel, &canvas, inner_w)?;
+            draw_panel_in_area(figure, panel, &canvas)?;
         }
     }
 
@@ -108,12 +108,12 @@ fn draw_panel_in_area<DB: DrawingBackend>(
     figure: &CompiledFigure,
     panel: &CompiledPanel,
     area: &DrawingArea<DB, Shift>,
-    area_width_px: u32,
 ) -> Result<(), &'static str> {
     if panel.hide_axes {
         return Ok(());
     }
 
+    let (area_width_px, area_height_px) = area.dim_in_pixel();
     let inset_frac = panel.layout.right_inset_frac;
     let bar_px = (area_width_px as f64 * inset_frac).round() as u32;
     // Leave a right inset for the colorbar: margin(top, bottom, left, right).
@@ -135,12 +135,24 @@ fn draw_panel_in_area<DB: DrawingBackend>(
     let title_px = pt_to_px(figure.title_fontsize, figure.dpi);
     let tick_mark = tick_size_px(figure.dpi);
     let spine = RGBColor(MPL_SPINE.0, MPL_SPINE.1, MPL_SPINE.2);
-    let label_left = label_area_left_px(figure.tick_fontsize, figure.dpi);
-    let label_bottom = label_area_bottom_px(figure.label_fontsize, figure.tick_fontsize, figure.dpi);
-    let chart_margin = chart_margin_px(figure.dpi) + title_pad_px(figure.title_fontsize, figure.dpi);
+
+    // Cap label gutters so multi-panel + large fonts keep a usable axes region
+    // (matplotlib tight_layout does this globally; we approximate per cell).
+    let max_left = (area_width_px as f64 * 0.28).round().max(24.0) as u32;
+    let max_bottom = (area_height_px as f64 * 0.28).round().max(24.0) as u32;
+    let max_title = (area_height_px as f64 * 0.18).round().max(12.0) as i32;
+    let label_left = label_area_left_px(figure.tick_fontsize, figure.dpi).min(max_left);
+    let label_bottom =
+        label_area_bottom_px(figure.label_fontsize, figure.tick_fontsize, figure.dpi).min(max_bottom);
+    let title_band = title_pad_px(figure.title_fontsize, figure.dpi).min(max_title);
+    // Outer chart margin: keep small so gutters dominate spacing, not double-padding.
+    let chart_margin = chart_margin_px(figure.dpi).max(2);
 
     let mut chart = ChartBuilder::on(&plot_area)
-        .margin(chart_margin)
+        .margin_top(chart_margin + title_band)
+        .margin_bottom(chart_margin)
+        .margin_left(chart_margin)
+        .margin_right(chart_margin)
         .set_label_area_size(LabelAreaPosition::Left, label_left)
         .set_label_area_size(LabelAreaPosition::Bottom, label_bottom)
         .caption(
