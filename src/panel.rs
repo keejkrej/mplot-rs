@@ -88,6 +88,17 @@ pub enum TickFormat {
     Scientific,
 }
 
+/// Rotation for category / tick labels (plotters only supports 90° steps).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum TickLabelRotation {
+    #[default]
+    None,
+    /// Counter-clockwise 90° (bottom labels read upward — good for long category names).
+    Ccw90,
+    /// Clockwise 90°.
+    Cw90,
+}
+
 /// Axes styling and limits for one panel.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct AxesStyle {
@@ -104,6 +115,7 @@ pub struct AxesStyle {
     y_ticks: Option<TickLabels>,
     x_tick_format: TickFormat,
     y_tick_format: TickFormat,
+    x_tick_label_rotation: TickLabelRotation,
     legend: LegendStyle,
 }
 
@@ -197,6 +209,12 @@ impl AxesStyle {
         self
     }
 
+    /// Rotate x-axis tick labels (category names on boxplots, etc.).
+    pub fn x_tick_label_rotation(mut self, rotation: TickLabelRotation) -> Self {
+        self.x_tick_label_rotation = rotation;
+        self
+    }
+
     pub fn legend(mut self, legend: LegendStyle) -> Self {
         self.legend = legend;
         self
@@ -252,6 +270,10 @@ impl AxesStyle {
 
     pub(crate) fn y_tick_format_value(&self) -> TickFormat {
         self.y_tick_format
+    }
+
+    pub(crate) fn x_tick_label_rotation_value(&self) -> TickLabelRotation {
+        self.x_tick_label_rotation
     }
 
     pub(crate) fn legend_value(&self) -> LegendStyle {

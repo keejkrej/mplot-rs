@@ -406,6 +406,7 @@ mod tests {
             ticks_y: None,
             x_tick_format: Default::default(),
             y_tick_format: Default::default(),
+            x_tick_label_rotation: Default::default(),
             show_legend: false,
             layout: Default::default(),
             series: vec![CompiledSeries::Line(LineSeries {

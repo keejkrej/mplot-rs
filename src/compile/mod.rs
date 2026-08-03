@@ -66,6 +66,7 @@ fn compile_panel(panel: &PanelSpec, constrained_layout: bool) -> CompiledPanel {
         ticks_y: axes.y_ticks_value().cloned(),
         x_tick_format: axes.x_tick_format_value(),
         y_tick_format: axes.y_tick_format_value(),
+        x_tick_label_rotation: axes.x_tick_label_rotation_value(),
         show_legend: axes.legend_value().show,
         layout,
         series: panel.series.iter().map(compile_series).collect(),

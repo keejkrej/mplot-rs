@@ -1,5 +1,5 @@
 use crate::colormap::{Colormap, Normalize};
-use crate::panel::{TickFormat, TickLabels};
+use crate::panel::{TickFormat, TickLabelRotation, TickLabels};
 use crate::color::Color;
 use crate::series::{LineDash, Marker};
 
@@ -133,6 +133,7 @@ pub struct CompiledPanel {
     pub ticks_y: Option<TickLabels>,
     pub x_tick_format: TickFormat,
     pub y_tick_format: TickFormat,
+    pub x_tick_label_rotation: TickLabelRotation,
     pub show_legend: bool,
     pub layout: PanelLayout,
     pub series: Vec<CompiledSeries>,

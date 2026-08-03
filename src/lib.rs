@@ -57,7 +57,9 @@ pub mod prelude {
     pub use crate::error::{Error, Result};
     pub use crate::figure::{ExportFormat, Figure, FigureBuilder, SaveOptions, Size};
     pub use crate::gridspec::{GridSpec, SubplotSlot};
-    pub use crate::panel::{AxesStyle, GridPos, LegendStyle, TickFormat, TickLabels};
+    pub use crate::panel::{
+        AxesStyle, GridPos, LegendStyle, TickFormat, TickLabelRotation, TickLabels,
+    };
     pub use crate::series::{
         BarStyle, BoxplotStyle, ContourStyle, FillBetweenStyle, HistStyle, ImageStyle, LineDash,
         LineStyle, Marker, Scale, Series, TextStyle,

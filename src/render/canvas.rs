@@ -3,11 +3,13 @@ use plotters::coord::types::RangedCoordf64;
 use plotters::coord::Shift;
 use plotters::element::PathElement;
 use plotters::prelude::*;
-use plotters::style::{RGBColor, ShapeStyle};
+use plotters::style::text_anchor::{HPos, Pos, VPos};
+use plotters::style::{FontTransform, IntoFont, RGBColor, ShapeStyle, TextStyle};
 
 use crate::axes::{data_bounds, format_axis_tick, tick_plan, view_limits, PanelScales};
 use crate::colormap::{Colormap, Normalize};
 use crate::gridspec::SubplotSlot;
+use crate::panel::TickLabelRotation;
 use crate::render::layout::{pad_inches_px, panel_rect_for_slot};
 use crate::render::legend::{collect_entries, draw_legend};
 use crate::render::model::{CompiledFigure, CompiledPanel, CompiledSeries};
@@ -138,11 +140,34 @@ fn draw_panel_in_area<DB: DrawingBackend>(
     // Cap label gutters so multi-panel + large fonts keep a usable axes region
     // (matplotlib tight_layout does this globally; we approximate per cell).
     let max_left = (area_width_px as f64 * 0.28).round().max(24.0) as u32;
-    let max_bottom = (area_height_px as f64 * 0.28).round().max(24.0) as u32;
+    let max_bottom = (area_height_px as f64 * 0.42).round().max(24.0) as u32;
     let max_title = (area_height_px as f64 * 0.18).round().max(12.0) as i32;
     let label_left = label_area_left_px(figure.tick_fontsize, figure.dpi).min(max_left);
-    let label_bottom =
-        label_area_bottom_px(figure.label_fontsize, figure.tick_fontsize, figure.dpi).min(max_bottom);
+    let mut label_bottom =
+        label_area_bottom_px(figure.label_fontsize, figure.tick_fontsize, figure.dpi);
+    // Rotated category labels need height ≈ text width of the longest tick string.
+    if !matches!(
+        panel.x_tick_label_rotation,
+        TickLabelRotation::None
+    ) {
+        let max_chars = panel
+            .ticks_x
+            .as_ref()
+            .map(|ticks| {
+                ticks
+                    .labels()
+                    .iter()
+                    .map(|label| label.chars().filter(|c| *c != '\n').count())
+                    .max()
+                    .unwrap_or(8)
+            })
+            .unwrap_or(10);
+        let rotated_h = (tick_px * max_chars as f64 * 0.58
+            + pt_to_px(figure.label_fontsize, figure.dpi) * 1.2)
+            .round() as u32;
+        label_bottom = label_bottom.max(rotated_h);
+    }
+    let label_bottom = label_bottom.min(max_bottom);
     let title_band = title_pad_px(figure.title_fontsize, figure.dpi).min(max_title);
     // Outer chart margin: keep small so gutters dominate spacing, not double-padding.
     let chart_margin = chart_margin_px(figure.dpi).max(2);
@@ -196,12 +221,14 @@ fn draw_panel_in_area<DB: DrawingBackend>(
         filled: false,
         stroke_width: stroke_width_px(MPL_AXES_LINE_WIDTH, figure.dpi),
     };
+    let x_tick_style = x_tick_text_style(tick_px, panel.x_tick_label_rotation);
+    let y_tick_style = TextStyle::from((MPL_FONT, tick_px as i32).into_font());
     let mut mesh = chart.configure_mesh();
     mesh.x_desc(panel.xlabel.as_deref().unwrap_or(""))
         .y_desc(panel.ylabel.as_deref().unwrap_or(""))
-        .x_label_style((MPL_FONT, label_px as i32))
-        .y_label_style((MPL_FONT, label_px as i32))
-        .label_style((MPL_FONT, tick_px as i32))
+        .axis_desc_style((MPL_FONT, label_px as i32))
+        .x_label_style(x_tick_style)
+        .y_label_style(y_tick_style)
         .axis_style(axis_style)
         .set_all_tick_mark_size(tick_mark)
         .x_labels(ticks.x_count)
@@ -314,4 +341,18 @@ fn draw_open_spines<DB: DrawingBackend>(
         ])
         .map_err(|_| "failed to draw spines")?;
     Ok(())
+}
+
+fn x_tick_text_style(tick_px: f64, rotation: TickLabelRotation) -> TextStyle<'static> {
+    let base = TextStyle::from((MPL_FONT, tick_px as i32).into_font());
+    match rotation {
+        TickLabelRotation::None => base,
+        // Bottom-axis labels reading upward (standard for crowded categories).
+        TickLabelRotation::Ccw90 => base
+            .transform(FontTransform::Rotate270)
+            .pos(Pos::new(HPos::Right, VPos::Center)),
+        TickLabelRotation::Cw90 => base
+            .transform(FontTransform::Rotate90)
+            .pos(Pos::new(HPos::Left, VPos::Center)),
+    }
 }
