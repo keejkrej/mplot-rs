@@ -60,3 +60,7 @@ path = "examples/line_log_x.rs"
 [[example]]
 name = "boxplot_tilt"
 path = "examples/boxplot_tilt.rs"
+
+[[example]]
+name = "title_center"
+path = "examples/title_center.rs"

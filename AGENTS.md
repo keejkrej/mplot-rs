@@ -50,4 +50,4 @@ Figure::builder() → .panel(...) { series + AxesStyle } → .build()? → .save
 
 ## Status note
 
-Early development. Known gaps vs matplotlib should be fixed toward parity (example: subplot titles must center on the plot box, not the full cell — plotters `.caption` is not sufficient).
+Early development. Prefer fixing gaps toward matplotlib parity over documenting them as permanent exceptions.

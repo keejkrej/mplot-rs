@@ -104,9 +104,12 @@ pub fn label_area_bottom_px(label_fontsize: f64, tick_fontsize: f64, dpi: u32) -
 }
 
 /// Extra top margin for panel titles (`axes.titlepad` + part of title height).
+///
+/// Title text itself is drawn centered on the Axes box (not this full cell);
+/// this only reserves vertical space above the spines.
 pub fn title_pad_px(title_fontsize: f64, dpi: u32) -> i32 {
     let title_px = pt_to_px(title_fontsize.max(MPL_FONT_SIZE * 0.5), dpi);
     let pad_px = pt_to_px(MPL_TITLE_PAD, dpi);
-    // Caption is drawn in this band; keep enough room without eating the axes.
-    (pad_px * 0.75 + title_px * 0.55).round() as i32
+    // titlepad + roughly half the title glyph height (baseline sits on pad line).
+    (pad_px + title_px * 0.75).round() as i32
 }

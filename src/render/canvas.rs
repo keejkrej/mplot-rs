@@ -15,7 +15,7 @@ use crate::render::legend::{collect_entries, draw_legend};
 use crate::render::model::{CompiledFigure, CompiledPanel, CompiledSeries};
 use crate::render::mpl_style::{
     chart_margin_px, label_area_bottom_px, label_area_left_px, pt_to_px, stroke_width_px,
-    tick_size_px, title_pad_px, MPL_AXES_LINE_WIDTH, MPL_FONT, MPL_GRID, MPL_SPINE,
+    tick_size_px, title_pad_px, MPL_AXES_LINE_WIDTH, MPL_FONT, MPL_GRID, MPL_SPINE, MPL_TITLE_PAD,
 };
 use crate::render::primitives::{draw_colorbar, draw_series, ClipRect};
 
@@ -170,7 +170,18 @@ fn draw_panel_in_area<DB: DrawingBackend>(
         label_bottom = label_bottom.max(rotated_h);
     }
     let label_bottom = label_bottom.min(max_bottom);
-    let title_band = title_pad_px(figure.title_fontsize, figure.dpi).min(max_title);
+    // Matplotlib: title sits above the Axes box with axes.titlepad — reserve
+    // vertical room only when a title is set. Do not use plotters `.caption`
+    // (that centers on the full panel cell, including y-tick gutters).
+    let has_title = panel
+        .title
+        .as_ref()
+        .is_some_and(|title| !title.is_empty());
+    let title_band = if has_title {
+        title_pad_px(figure.title_fontsize, figure.dpi).min(max_title)
+    } else {
+        0
+    };
     // Outer chart margin: keep small so gutters dominate spacing, not double-padding.
     let chart_margin = chart_margin_px(figure.dpi).max(2);
 
@@ -181,10 +192,6 @@ fn draw_panel_in_area<DB: DrawingBackend>(
         .margin_right(chart_margin)
         .set_label_area_size(LabelAreaPosition::Left, label_left)
         .set_label_area_size(LabelAreaPosition::Bottom, label_bottom)
-        .caption(
-            panel.title.as_deref().unwrap_or(""),
-            (MPL_FONT, title_px as i32),
-        )
         .build_cartesian_2d(xmin..xmax, ymin..ymax)
         .map_err(|_| "failed to build chart")?;
 
@@ -323,6 +330,43 @@ fn draw_panel_in_area<DB: DrawingBackend>(
         )?;
     }
 
+    // Axes title after geometry is known so we can center on the plot box
+    // (matplotlib transAxes x=0.5), not the full panel including tick gutters.
+    if let Some(title) = panel.title.as_deref().filter(|t| !t.is_empty()) {
+        draw_axes_title(&chart, title, title_px, figure.dpi)?;
+    }
+
+    Ok(())
+}
+
+/// Draw the panel title centered on the Axes box (matplotlib default).
+///
+/// Position: horizontal center of the plotting area; baseline just above the
+/// top spine by `axes.titlepad` (`MPL_TITLE_PAD`). Matches
+/// `ax.set_title(..., loc='center')` with `transAxes` + titlepad offset.
+///
+/// Coordinates are **plot-local** (plotters `draw_text` adds the area origin).
+fn draw_axes_title<DB: DrawingBackend>(
+    chart: &Chart<'_, DB>,
+    title: &str,
+    title_px: f64,
+    dpi: u32,
+) -> Result<(), &'static str> {
+    let plot = chart.plotting_area().strip_coord_spec();
+    let (plot_w, _) = plot.dim_in_pixel();
+    if plot_w == 0 {
+        return Ok(());
+    }
+    let pad_px = pt_to_px(MPL_TITLE_PAD, dpi).round().max(1.0) as i32;
+    // Local: (0,0) is the top-left of the Axes box. y increases downward, so
+    // above the top spine is negative y. Center x = half the plot width.
+    // VPos::Bottom ≈ matplotlib verticalalignment='baseline' at the anchor.
+    let cx = plot_w as i32 / 2;
+    let cy = -pad_px;
+    let style = TextStyle::from((MPL_FONT, title_px as i32).into_font())
+        .pos(Pos::new(HPos::Center, VPos::Bottom));
+    plot.draw_text(title, &style, (cx, cy))
+        .map_err(|_| "failed to draw axes title")?;
     Ok(())
 }
 
