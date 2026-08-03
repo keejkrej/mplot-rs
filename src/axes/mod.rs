@@ -1,12 +1,13 @@
 use std::collections::HashMap;
 
-use crate::panel::TickLabels;
+use crate::panel::{TickFormat, TickLabels};
 use crate::render::model::{CompiledPanel, CompiledSeries};
 use crate::render::mpl_style::{MPL_XMARGIN, MPL_YMARGIN};
 use crate::render::scene::box_positions;
 use crate::scale::AxisScale;
 use crate::ticker::{
-    format_linear, format_log_axis_coord, format_log_data, linear_ticks, log_ticks_data,
+    format_linear, format_log_axis_coord, format_log_data, format_scientific, linear_ticks,
+    log_ticks_data,
 };
 
 /// Data-space bounds before scale transform.
@@ -55,6 +56,8 @@ pub struct TickPlan {
     pub y_label_map: HashMap<i64, String>,
     pub custom_x: bool,
     pub custom_y: bool,
+    pub x_tick_format: TickFormat,
+    pub y_tick_format: TickFormat,
 }
 
 pub fn data_bounds(panel: &CompiledPanel) -> DataBounds {
@@ -261,12 +264,14 @@ pub fn tick_plan(panel: &CompiledPanel, view: ViewLimits) -> TickPlan {
         x_scale,
         xmin,
         xmax,
+        panel.x_tick_format,
     );
     let (y_count, y_label_map, custom_y) = axis_ticks(
         panel.ticks_y.as_ref(),
         y_scale,
         ymin,
         ymax,
+        panel.y_tick_format,
     );
 
     TickPlan {
@@ -276,6 +281,8 @@ pub fn tick_plan(panel: &CompiledPanel, view: ViewLimits) -> TickPlan {
         y_label_map,
         custom_x,
         custom_y,
+        x_tick_format: panel.x_tick_format,
+        y_tick_format: panel.y_tick_format,
     }
 }
 
@@ -284,6 +291,7 @@ fn axis_ticks(
     scale: AxisScale,
     axis_min: f64,
     axis_max: f64,
+    format: TickFormat,
 ) -> (usize, HashMap<i64, String>, bool) {
     if let Some(custom) = custom {
         let map = custom
@@ -315,19 +323,36 @@ fn axis_ticks(
     let ticks = linear_ticks(axis_min, axis_max, 6);
     let map = ticks
         .iter()
-        .map(|tick| ((*tick * 1000.0).round() as i64, format_linear(*tick)))
+        .map(|tick| {
+            (
+                (*tick * 1000.0).round() as i64,
+                format_tick_value(*tick, format),
+            )
+        })
         .collect();
     (ticks.len().max(1), map, false)
 }
 
-pub fn format_axis_tick(scale: AxisScale, custom: bool, axis_value: f64) -> String {
+fn format_tick_value(value: f64, format: TickFormat) -> String {
+    match format {
+        TickFormat::Auto => format_linear(value),
+        TickFormat::Scientific => format_scientific(value),
+    }
+}
+
+pub fn format_axis_tick(
+    scale: AxisScale,
+    custom: bool,
+    axis_value: f64,
+    format: TickFormat,
+) -> String {
     if custom {
         return String::new();
     }
     if scale.is_log() {
         format_log_axis_coord(axis_value)
     } else {
-        format_linear(axis_value)
+        format_tick_value(axis_value, format)
     }
 }
 
@@ -379,6 +404,8 @@ mod tests {
             show_grid: false,
             ticks_x: None,
             ticks_y: None,
+            x_tick_format: Default::default(),
+            y_tick_format: Default::default(),
             show_legend: false,
             layout: Default::default(),
             series: vec![CompiledSeries::Line(LineSeries {

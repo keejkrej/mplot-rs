@@ -83,6 +83,34 @@ pub fn format_linear(value: f64) -> String {
     }
 }
 
+/// Scientific notation labels (e.g. `1.5e6`, `-2e3`) for large intensity axes.
+pub fn format_scientific(value: f64) -> String {
+    if !value.is_finite() {
+        return String::new();
+    }
+    if value == 0.0 {
+        return "0".to_string();
+    }
+    let raw = format!("{value:.1e}");
+    // `1.0e6` → `1e6`, strip `+` on exponent: `1.5e+06` → `1.5e6`
+    let Some((mant, exp)) = raw.split_once('e') else {
+        return raw;
+    };
+    let mant = mant.trim_end_matches('0').trim_end_matches('.');
+    let exp = exp.trim_start_matches('+').trim_start_matches('0');
+    let exp = if exp.is_empty() || exp == "-" {
+        // e.g. e+00 or leftover sign-only
+        if exp.starts_with('-') {
+            "-0"
+        } else {
+            "0"
+        }
+    } else {
+        exp
+    };
+    format!("{mant}e{exp}")
+}
+
 pub fn format_log_data(value: f64) -> String {
     if !value.is_finite() || value <= 0.0 {
         return String::new();
@@ -121,5 +149,13 @@ mod tests {
         assert!(!ticks.is_empty());
         assert!(*ticks.first().unwrap() >= 0.0);
         assert!(*ticks.last().unwrap() <= 4.0);
+    }
+
+    #[test]
+    fn scientific_formats_large_values() {
+        assert_eq!(format_scientific(0.0), "0");
+        assert_eq!(format_scientific(1_500_000.0), "1.5e6");
+        assert_eq!(format_scientific(1_000_000.0), "1e6");
+        assert_eq!(format_scientific(-2_000.0), "-2e3");
     }
 }

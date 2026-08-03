@@ -167,19 +167,21 @@ fn draw_panel_in_area<DB: DrawingBackend>(
     let y_scale = scales.y;
     let custom_x = ticks.custom_x;
     let custom_y = ticks.custom_y;
+    let x_tick_format = ticks.x_tick_format;
+    let y_tick_format = ticks.y_tick_format;
     let x_formatter = move |value: &f64| {
         let key = (value * 1000.0).round() as i64;
         if let Some(label) = x_label_map.get(&key) {
             return label.clone();
         }
-        format_axis_tick(x_scale, custom_x, *value)
+        format_axis_tick(x_scale, custom_x, *value, x_tick_format)
     };
     let y_formatter = move |value: &f64| {
         let key = (value * 1000.0).round() as i64;
         if let Some(label) = y_label_map.get(&key) {
             return label.clone();
         }
-        format_axis_tick(y_scale, custom_y, *value)
+        format_axis_tick(y_scale, custom_y, *value, y_tick_format)
     };
 
     // Plotters only emits tick *labels* when axes are enabled (mesh.rs:

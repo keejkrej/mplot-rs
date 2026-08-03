@@ -78,6 +78,16 @@ impl LegendStyle {
 
 use crate::series::Scale;
 
+/// How automatic tick labels are formatted (custom tick labels override this).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum TickFormat {
+    /// Compact plain numbers (`format_linear`).
+    #[default]
+    Auto,
+    /// Scientific notation (`1.5e6`).
+    Scientific,
+}
+
 /// Axes styling and limits for one panel.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct AxesStyle {
@@ -92,6 +102,8 @@ pub struct AxesStyle {
     hide: bool,
     x_ticks: Option<TickLabels>,
     y_ticks: Option<TickLabels>,
+    x_tick_format: TickFormat,
+    y_tick_format: TickFormat,
     legend: LegendStyle,
 }
 
@@ -175,6 +187,16 @@ impl AxesStyle {
         self
     }
 
+    pub fn x_tick_format(mut self, format: TickFormat) -> Self {
+        self.x_tick_format = format;
+        self
+    }
+
+    pub fn y_tick_format(mut self, format: TickFormat) -> Self {
+        self.y_tick_format = format;
+        self
+    }
+
     pub fn legend(mut self, legend: LegendStyle) -> Self {
         self.legend = legend;
         self
@@ -222,6 +244,14 @@ impl AxesStyle {
 
     pub(crate) fn y_ticks_value(&self) -> Option<&TickLabels> {
         self.y_ticks.as_ref()
+    }
+
+    pub(crate) fn x_tick_format_value(&self) -> TickFormat {
+        self.x_tick_format
+    }
+
+    pub(crate) fn y_tick_format_value(&self) -> TickFormat {
+        self.y_tick_format
     }
 
     pub(crate) fn legend_value(&self) -> LegendStyle {
