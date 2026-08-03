@@ -4,7 +4,7 @@ use plotters::coord::Shift;
 use plotters::element::PathElement;
 use plotters::prelude::*;
 use plotters::style::text_anchor::{HPos, Pos, VPos};
-use plotters::style::{FontTransform, IntoFont, RGBColor, ShapeStyle, TextStyle};
+use plotters::style::{FontDesc, FontTransform, IntoFont, RGBColor, ShapeStyle, TextStyle};
 
 use crate::axes::{data_bounds, format_axis_tick, tick_plan, view_limits, PanelScales};
 use crate::colormap::{Colormap, Normalize};
@@ -145,11 +145,8 @@ fn draw_panel_in_area<DB: DrawingBackend>(
     let label_left = label_area_left_px(figure.tick_fontsize, figure.dpi).min(max_left);
     let mut label_bottom =
         label_area_bottom_px(figure.label_fontsize, figure.tick_fontsize, figure.dpi);
-    // Rotated category labels need height ≈ text width of the longest tick string.
-    if !matches!(
-        panel.x_tick_label_rotation,
-        TickLabelRotation::None
-    ) {
+    // Rotated category labels need extra bottom gutter for the projected text box.
+    if let Some(deg) = panel.x_tick_label_rotation.degrees() {
         let max_chars = panel
             .ticks_x
             .as_ref()
@@ -162,8 +159,13 @@ fn draw_panel_in_area<DB: DrawingBackend>(
                     .unwrap_or(8)
             })
             .unwrap_or(10);
-        let rotated_h = (tick_px * max_chars as f64 * 0.58
-            + pt_to_px(figure.label_fontsize, figure.dpi) * 1.2)
+        let text_w = tick_px * max_chars as f64 * 0.58;
+        let text_h = tick_px;
+        let rad = (deg as f64).abs().to_radians();
+        // Axis-aligned bounding box of a rotated rectangle.
+        let rotated_h = (text_w * rad.sin() + text_h * rad.cos()
+            + pt_to_px(figure.label_fontsize, figure.dpi) * 1.2
+            + tick_mark as f64 * 2.0)
             .round() as u32;
         label_bottom = label_bottom.max(rotated_h);
     }
@@ -194,7 +196,13 @@ fn draw_panel_in_area<DB: DrawingBackend>(
     let custom_y = ticks.custom_y;
     let x_tick_format = ticks.x_tick_format;
     let y_tick_format = ticks.y_tick_format;
+    // Arbitrary-angle labels are drawn after the mesh (plotters only does 90°).
+    let custom_x_rotation = panel.x_tick_label_rotation.needs_custom_draw();
     let x_formatter = move |value: &f64| {
+        if custom_x_rotation {
+            // Keep tick marks; suppress plotters' horizontal/90° text.
+            return String::new();
+        }
         let key = (value * 1000.0).round() as i64;
         if let Some(label) = x_label_map.get(&key) {
             return label.clone();
@@ -245,6 +253,19 @@ fn draw_panel_in_area<DB: DrawingBackend>(
     }
 
     mesh.draw().map_err(|_| "failed to draw mesh")?;
+
+    if custom_x_rotation {
+        if let Some(deg) = panel.x_tick_label_rotation.degrees() {
+            draw_angled_x_tick_labels(
+                &chart,
+                panel,
+                deg as f64,
+                tick_px,
+                ymin,
+                tick_mark,
+            )?;
+        }
+    }
 
     let clip = ClipRect {
         xmin,
@@ -354,5 +375,122 @@ fn x_tick_text_style(tick_px: f64, rotation: TickLabelRotation) -> TextStyle<'st
         TickLabelRotation::Cw90 => base
             .transform(FontTransform::Rotate90)
             .pos(Pos::new(HPos::Left, VPos::Center)),
+        // Arbitrary angles: plotters mesh labels are suppressed; see
+        // `draw_angled_x_tick_labels`. Map exact cardinals to FontTransform.
+        TickLabelRotation::Degrees(deg) => match deg.rem_euclid(360) {
+            0 => base,
+            90 => base
+                .transform(FontTransform::Rotate270)
+                .pos(Pos::new(HPos::Right, VPos::Center)),
+            180 => base.transform(FontTransform::Rotate180),
+            270 => base
+                .transform(FontTransform::Rotate90)
+                .pos(Pos::new(HPos::Left, VPos::Center)),
+            _ => base, // unused; labels drawn manually
+        },
+    }
+}
+
+/// Draw x-axis tick labels at an arbitrary angle (matplotlib `rotation=`).
+///
+/// Anchor matches the common category style: right + top, so mild negative
+/// angles (e.g. −30°) hang below the axis like Observable Plot `tickRotate`.
+fn draw_angled_x_tick_labels<DB: DrawingBackend>(
+    chart: &Chart<'_, DB>,
+    panel: &CompiledPanel,
+    angle_deg: f64,
+    tick_px: f64,
+    ymin: f64,
+    tick_mark: i32,
+) -> Result<(), &'static str> {
+    let Some(tick_labels) = panel.ticks_x.as_ref() else {
+        return Ok(());
+    };
+    let font: FontDesc<'static> = (MPL_FONT, tick_px as i32).into_font();
+    let color = RGBColor(0, 0, 0);
+    // Same clearance as plotters' `label_dist = tick_size.abs() * 2`.
+    let label_dist = tick_mark.abs() * 2;
+    // Screen pixel space so we can paint into the bottom gutter below the axes.
+    let screen = chart.plotting_area().use_screen_coord();
+
+    for (value, label) in tick_labels.ticks().iter().zip(tick_labels.labels().iter()) {
+        if label.is_empty() {
+            continue;
+        }
+        let (gx, gy) = chart.backend_coord(&(*value, ymin));
+        let anchor = (gx, gy + label_dist);
+        draw_text_rotated(
+            &screen,
+            label,
+            &font,
+            &color,
+            anchor,
+            angle_deg,
+            HPos::Right,
+            VPos::Top,
+        )?;
+    }
+    Ok(())
+}
+
+/// Rasterize `text` with `font`, rotate by `angle_deg` (CCW), and blit pixels.
+///
+/// Anchor semantics mirror plotters' `draw_text`: horizontal/vertical
+/// alignment is applied in the unrotated frame, then the offset vector is
+/// rotated around the anchor point. `pos` is in backend/screen pixels when
+/// `area` was obtained via [`DrawingArea::use_screen_coord`].
+fn draw_text_rotated<DB: DrawingBackend>(
+    area: &DrawingArea<DB, Shift>,
+    text: &str,
+    font: &FontDesc<'_>,
+    color: &RGBColor,
+    pos: (i32, i32),
+    angle_deg: f64,
+    h_pos: HPos,
+    v_pos: VPos,
+) -> Result<(), &'static str> {
+    let ((min_x, min_y), (max_x, max_y)) = font
+        .layout_box(text)
+        .map_err(|_| "failed to layout rotated tick label")?;
+    let width = max_x - min_x;
+    let height = max_y - min_y;
+    let dx = match h_pos {
+        HPos::Left => 0,
+        HPos::Right => -width,
+        HPos::Center => -width / 2,
+    };
+    let dy = match v_pos {
+        VPos::Top => 0,
+        VPos::Center => -height / 2,
+        VPos::Bottom => -height,
+    };
+
+    let rad = angle_deg.to_radians();
+    let cos = rad.cos();
+    let sin = rad.sin();
+    let (ax, ay) = pos;
+    // Labels hang into the bottom gutter outside the plotting-area rect;
+    // do not clip to area height — pixels still land on the shared bitmap.
+
+    let draw_result = font.draw(text, (0, 0), |x, y, alpha| {
+        if alpha <= 0.0 {
+            return Ok::<(), &'static str>(());
+        }
+        let lx = (x + dx - min_x) as f64;
+        let ly = (y + dy - min_y) as f64;
+        let rx = (lx * cos - ly * sin).round() as i32;
+        let ry = (lx * sin + ly * cos).round() as i32;
+        let px = ax + rx;
+        let py = ay + ry;
+        let pixel = color.mix(f64::from(alpha));
+        area.draw_pixel((px, py), &pixel)
+            .map_err(|_| "failed to draw rotated tick pixel")?;
+        Ok(())
+    });
+
+    match draw_result {
+        Ok(Ok(())) => Ok(()),
+        Ok(Err(e)) => Err(e),
+        Err(_) => Err("failed to rasterize rotated tick label"),
     }
 }

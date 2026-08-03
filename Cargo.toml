@@ -56,3 +56,7 @@ path = "examples/gridspec_layout.rs"
 [[example]]
 name = "line_log_x"
 path = "examples/line_log_x.rs"
+
+[[example]]
+name = "boxplot_tilt"
+path = "examples/boxplot_tilt.rs"

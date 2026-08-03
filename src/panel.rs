@@ -88,7 +88,12 @@ pub enum TickFormat {
     Scientific,
 }
 
-/// Rotation for category / tick labels (plotters only supports 90° steps).
+/// Rotation for category / tick labels.
+///
+/// Plotters' built-in [`FontTransform`] only covers 90° steps. Cardinal
+/// variants (`Ccw90` / `Cw90`) use that path; [`TickLabelRotation::Degrees`]
+/// is drawn by mplot with an arbitrary rotation matrix (matplotlib-style
+/// counter-clockwise degrees from horizontal).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum TickLabelRotation {
     #[default]
@@ -97,6 +102,34 @@ pub enum TickLabelRotation {
     Ccw90,
     /// Clockwise 90°.
     Cw90,
+    /// Counter-clockwise degrees from horizontal (matplotlib `rotation=`).
+    ///
+    /// Typical category axes use a mild tilt such as `Degrees(-30)` (matches
+    /// Observable Plot / D3 `tickRotate: -30`) so labels hang below the axis.
+    Degrees(i16),
+}
+
+impl TickLabelRotation {
+    /// Signed CCW degrees from horizontal, or `None` when labels stay upright.
+    pub fn degrees(self) -> Option<i16> {
+        match self {
+            TickLabelRotation::None => None,
+            TickLabelRotation::Ccw90 => Some(90),
+            TickLabelRotation::Cw90 => Some(-90),
+            TickLabelRotation::Degrees(deg) => Some(deg),
+        }
+    }
+
+    /// True when labels must be drawn outside plotters' 90° FontTransform path.
+    pub(crate) fn needs_custom_draw(self) -> bool {
+        match self {
+            TickLabelRotation::None | TickLabelRotation::Ccw90 | TickLabelRotation::Cw90 => false,
+            TickLabelRotation::Degrees(deg) => {
+                let d = deg.rem_euclid(360);
+                d != 0 && d != 90 && d != 180 && d != 270
+            }
+        }
+    }
 }
 
 /// Axes styling and limits for one panel.
