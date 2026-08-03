@@ -439,6 +439,9 @@ fn draw_angled_x_tick_labels<DB: DrawingBackend>(
 /// alignment is applied in the unrotated frame, then the offset vector is
 /// rotated around the anchor point. `pos` is in backend/screen pixels when
 /// `area` was obtained via [`DrawingArea::use_screen_coord`].
+///
+/// Uses inverse-mapping + bilinear alpha sampling so edges stay anti-aliased
+/// (nearest-neighbour glyph-pixel rotation looks jaggy at mild angles).
 fn draw_text_rotated<DB: DrawingBackend>(
     area: &DrawingArea<DB, Shift>,
     text: &str,
@@ -454,6 +457,9 @@ fn draw_text_rotated<DB: DrawingBackend>(
         .map_err(|_| "failed to layout rotated tick label")?;
     let width = max_x - min_x;
     let height = max_y - min_y;
+    if width <= 0 || height <= 0 {
+        return Ok(());
+    }
     let dx = match h_pos {
         HPos::Left => 0,
         HPos::Right => -width,
@@ -465,32 +471,110 @@ fn draw_text_rotated<DB: DrawingBackend>(
         VPos::Bottom => -height,
     };
 
+    // Dense alpha buffer in content-relative coords (not anchor-relative), so
+    // right-aligned labels with negative local x still land in-bounds.
+    //   buf_x = (glyph_x - min_x) + pad  ∈ [pad, width+pad]
+    //   local_x (anchor frame) = (glyph_x - min_x) + dx
+    //   ⇒ buf_x = local_x - dx + pad
+    let pad = 1i32;
+    let sw = (width + 2 * pad) as usize;
+    let sh = (height + 2 * pad) as usize;
+    let mut src = vec![0f32; sw * sh];
+
+    let collect = font.draw(text, (0, 0), |x, y, alpha| {
+        if alpha <= 0.0 {
+            return Ok::<(), &'static str>(());
+        }
+        let bx = x - min_x + pad;
+        let by = y - min_y + pad;
+        if bx >= 0 && by >= 0 && (bx as usize) < sw && (by as usize) < sh {
+            let idx = by as usize * sw + bx as usize;
+            // Glyph canvases can slightly overlap; keep the stronger coverage.
+            if alpha > src[idx] {
+                src[idx] = alpha;
+            }
+        }
+        Ok(())
+    });
+    match collect {
+        Ok(Ok(())) => {}
+        Ok(Err(e)) => return Err(e),
+        Err(_) => return Err("failed to rasterize rotated tick label"),
+    }
+
     let rad = angle_deg.to_radians();
     let cos = rad.cos();
     let sin = rad.sin();
     let (ax, ay) = pos;
-    // Labels hang into the bottom gutter outside the plotting-area rect;
-    // do not clip to area height — pixels still land on the shared bitmap.
 
-    let draw_result = font.draw(text, (0, 0), |x, y, alpha| {
-        if alpha <= 0.0 {
-            return Ok::<(), &'static str>(());
-        }
-        let lx = (x + dx - min_x) as f64;
-        let ly = (y + dy - min_y) as f64;
-        let rx = (lx * cos - ly * sin).round() as i32;
-        let ry = (lx * sin + ly * cos).round() as i32;
-        let px = ax + rx;
-        let py = ay + ry;
-        let pixel = color.mix(f64::from(alpha));
-        area.draw_pixel((px, py), &pixel)
-            .map_err(|_| "failed to draw rotated tick pixel")?;
-        Ok(())
-    });
-
-    match draw_result {
-        Ok(Ok(())) => Ok(()),
-        Ok(Err(e)) => Err(e),
-        Err(_) => Err("failed to rasterize rotated tick label"),
+    // Local (anchor-relative) corners of the content box.
+    let x0 = dx as f64;
+    let x1 = (dx + width) as f64;
+    let y0 = dy as f64;
+    let y1 = (dy + height) as f64;
+    let corners = [(x0, y0), (x1, y0), (x0, y1), (x1, y1)];
+    let mut dest_min_x = i32::MAX;
+    let mut dest_max_x = i32::MIN;
+    let mut dest_min_y = i32::MAX;
+    let mut dest_max_y = i32::MIN;
+    for &(lx, ly) in &corners {
+        let rx = lx * cos - ly * sin;
+        let ry = lx * sin + ly * cos;
+        dest_min_x = dest_min_x.min(rx.floor() as i32 - 1);
+        dest_max_x = dest_max_x.max(rx.ceil() as i32 + 1);
+        dest_min_y = dest_min_y.min(ry.floor() as i32 - 1);
+        dest_max_y = dest_max_y.max(ry.ceil() as i32 + 1);
     }
+
+    // Inverse-map each dest pixel → local → buffer, bilinear sample alpha.
+    for ry in dest_min_y..=dest_max_y {
+        for rx in dest_min_x..=dest_max_x {
+            let dx_f = rx as f64;
+            let dy_f = ry as f64;
+            // R^{-1} = [ cos  sin; -sin  cos ]
+            let local_x = dx_f * cos + dy_f * sin;
+            let local_y = -dx_f * sin + dy_f * cos;
+            let bx = local_x - dx as f64 + pad as f64;
+            let by = local_y - dy as f64 + pad as f64;
+            let alpha = bilinear_sample_alpha(&src, sw, sh, bx, by);
+            if alpha <= 0.02 {
+                continue;
+            }
+            let pixel = color.mix(f64::from(alpha));
+            area.draw_pixel((ax + rx, ay + ry), &pixel)
+                .map_err(|_| "failed to draw rotated tick pixel")?;
+        }
+    }
+    Ok(())
+}
+
+/// Bilinear sample of a dense alpha buffer. Coordinates are continuous pixel
+/// centres; out-of-bounds samples return 0.
+fn bilinear_sample_alpha(src: &[f32], width: usize, height: usize, x: f64, y: f64) -> f32 {
+    if width == 0 || height == 0 {
+        return 0.0;
+    }
+    // Sample at continuous coords; floor for integer cell.
+    let x0 = x.floor();
+    let y0 = y.floor();
+    let fx = (x - x0) as f32;
+    let fy = (y - y0) as f32;
+    let ix0 = x0 as i32;
+    let iy0 = y0 as i32;
+
+    let sample = |ix: i32, iy: i32| -> f32 {
+        if ix < 0 || iy < 0 || ix as usize >= width || iy as usize >= height {
+            0.0
+        } else {
+            src[iy as usize * width + ix as usize]
+        }
+    };
+
+    let a00 = sample(ix0, iy0);
+    let a10 = sample(ix0 + 1, iy0);
+    let a01 = sample(ix0, iy0 + 1);
+    let a11 = sample(ix0 + 1, iy0 + 1);
+    let a0 = a00 * (1.0 - fx) + a10 * fx;
+    let a1 = a01 * (1.0 - fx) + a11 * fx;
+    a0 * (1.0 - fy) + a1 * fy
 }
