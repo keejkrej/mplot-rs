@@ -58,11 +58,12 @@ pub fn render_figure<DB: DrawingBackend>(
                 figure.save_tight,
                 figure.constrained_layout,
             );
+            // plotters::DrawingArea::margin is (top, bottom, left, right).
             let area = canvas.margin(
-                rect.x,
                 rect.y,
-                inner_w.saturating_sub(rect.x + rect.width),
                 inner_h.saturating_sub(rect.y + rect.height),
+                rect.x,
+                inner_w.saturating_sub(rect.x + rect.width),
             );
             area.fill(&RGBColor(255, 255, 255))
                 .map_err(|_| "failed to clear subplot")?;
@@ -115,8 +116,9 @@ fn draw_panel_in_area<DB: DrawingBackend>(
 
     let inset_frac = panel.layout.right_inset_frac;
     let bar_px = (area_width_px as f64 * inset_frac).round() as u32;
+    // Leave a right inset for the colorbar: margin(top, bottom, left, right).
     let plot_area = if bar_px > 0 {
-        area.margin(0, bar_px, 0, 0)
+        area.margin(0, 0, 0, bar_px)
     } else {
         area.margin(0, 0, 0, 0)
     };
@@ -212,7 +214,8 @@ fn draw_panel_in_area<DB: DrawingBackend>(
 
     if let Some((normalize, colormap)) = colorbar {
         if bar_px > 0 {
-            let bar_area = area.margin(0, 0, 0, area_width_px.saturating_sub(bar_px));
+            // Right-hand colorbar strip: left margin is everything except bar_px.
+            let bar_area = area.margin(0, 0, area_width_px.saturating_sub(bar_px), 0);
             draw_colorbar_in_area(
                 &bar_area,
                 normalize,
