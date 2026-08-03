@@ -3,7 +3,7 @@ use plotters::coord::types::RangedCoordf64;
 use plotters::coord::Shift;
 use plotters::element::PathElement;
 use plotters::prelude::*;
-use plotters::style::RGBColor;
+use plotters::style::{RGBColor, ShapeStyle};
 
 use crate::axes::{data_bounds, format_axis_tick, tick_plan, view_limits, PanelScales};
 use crate::colormap::{Colormap, Normalize};
@@ -182,15 +182,25 @@ fn draw_panel_in_area<DB: DrawingBackend>(
         format_axis_tick(y_scale, custom_y, *value)
     };
 
+    // Plotters only emits tick *labels* when axes are enabled (mesh.rs:
+    // format_x/y return None if draw_x/y_axis is false). Never call
+    // disable_axes() if numbers/tick marks are required.
+    //
+    // Mesh draws left + bottom (+ ticks). We add top + right after series so
+    // the box is closed and series cannot erase those edges — without
+    // re-stroking left/bottom (that made them look thicker).
+    let axis_style = ShapeStyle {
+        color: spine.to_rgba(),
+        filled: false,
+        stroke_width: stroke_width_px(MPL_AXES_LINE_WIDTH, figure.dpi),
+    };
     let mut mesh = chart.configure_mesh();
     mesh.x_desc(panel.xlabel.as_deref().unwrap_or(""))
         .y_desc(panel.ylabel.as_deref().unwrap_or(""))
         .x_label_style((MPL_FONT, label_px as i32))
         .y_label_style((MPL_FONT, label_px as i32))
         .label_style((MPL_FONT, tick_px as i32))
-        // Axes box is drawn once after series (uniform width). Plotters' mesh
-        // would also stroke left/bottom, which made those sides look thicker.
-        .disable_axes()
+        .axis_style(axis_style)
         .set_all_tick_mark_size(tick_mark)
         .x_labels(ticks.x_count)
         .y_labels(ticks.y_count)
@@ -198,9 +208,9 @@ fn draw_panel_in_area<DB: DrawingBackend>(
         .y_label_formatter(&y_formatter);
 
     if panel.show_grid {
-        mesh.light_line_style(RGBColor(MPL_GRID.0, MPL_GRID.1, MPL_GRID.2));
-        // Avoid a heavy zero-line / bold mesh on top of light grid.
-        mesh.bold_line_style(RGBColor(MPL_GRID.0, MPL_GRID.1, MPL_GRID.2));
+        let grid = RGBColor(MPL_GRID.0, MPL_GRID.1, MPL_GRID.2);
+        mesh.light_line_style(grid);
+        mesh.bold_line_style(grid);
     } else {
         mesh.disable_mesh();
     }
@@ -227,8 +237,9 @@ fn draw_panel_in_area<DB: DrawingBackend>(
         }
     }
 
-    // Redraw the full frame after series so clipped stroke caps cannot erase spines.
-    draw_frame_spines(&mut chart, xmin, xmax, ymin, ymax, spine, figure.dpi)?;
+    // Close the box (top + right). Left/bottom already stroked by mesh with
+    // the same axis_style — redrawing them would double the weight.
+    draw_open_spines(&mut chart, xmin, xmax, ymin, ymax, spine, figure.dpi)?;
 
     if let Some((normalize, colormap)) = colorbar {
         if bar_px > 0 {
@@ -283,7 +294,8 @@ fn draw_colorbar_in_area<DB: DrawingBackend>(
     Ok(())
 }
 
-fn draw_frame_spines<DB: DrawingBackend>(
+/// Top + right spines (left/bottom come from plotters mesh when axes enabled).
+fn draw_open_spines<DB: DrawingBackend>(
     chart: &mut Chart<'_, DB>,
     xmin: f64,
     xmax: f64,
@@ -295,9 +307,7 @@ fn draw_frame_spines<DB: DrawingBackend>(
     let style = spine.stroke_width(stroke_width_px(MPL_AXES_LINE_WIDTH, dpi));
     chart
         .draw_series([
-            PathElement::new(vec![(xmin, ymin), (xmax, ymin)], style), // bottom
             PathElement::new(vec![(xmin, ymax), (xmax, ymax)], style), // top
-            PathElement::new(vec![(xmin, ymin), (xmin, ymax)], style), // left
             PathElement::new(vec![(xmax, ymin), (xmax, ymax)], style), // right
         ])
         .map_err(|_| "failed to draw spines")?;
