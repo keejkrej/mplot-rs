@@ -42,6 +42,7 @@ pub const MPL_TITLE_PAD: f64 = 6.0;
 pub const MPL_LABEL_PAD: f64 = 4.0;
 
 pub const MPL_XTICK_MAJOR_SIZE: f64 = 3.5;
+#[allow(dead_code)] // Matplotlib default xtick.major.width; plotters couples tick stroke with axis line width.
 pub const MPL_XTICK_MAJOR_WIDTH: f64 = 0.8;
 pub const MPL_XTICK_MAJOR_PAD: f64 = 3.5;
 

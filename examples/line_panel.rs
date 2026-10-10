@@ -9,9 +9,7 @@ fn main() -> Result<()> {
             p.line(
                 &x,
                 &y,
-                LineStyle::new()
-                    .color(Color::TABLEAU[0])
-                    .label("y = x²"),
+                LineStyle::new().color(Color::TABLEAU[0]).label("y = x²"),
             )
             .axes(
                 AxesStyle::new()

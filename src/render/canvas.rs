@@ -87,10 +87,7 @@ fn uses_slot_layout(figure: &CompiledFigure) -> bool {
         return true;
     }
     figure.panels.first().is_some_and(|panel| {
-        panel.grid_rows > 1
-            || panel.grid_cols > 1
-            || panel.rowspan > 1
-            || panel.colspan > 1
+        panel.grid_rows > 1 || panel.grid_cols > 1 || panel.rowspan > 1 || panel.colspan > 1
     })
 }
 
@@ -163,7 +160,8 @@ fn draw_panel_in_area<DB: DrawingBackend>(
         let text_h = tick_px;
         let rad = (deg as f64).abs().to_radians();
         // Axis-aligned bounding box of a rotated rectangle.
-        let rotated_h = (text_w * rad.sin() + text_h * rad.cos()
+        let rotated_h = (text_w * rad.sin()
+            + text_h * rad.cos()
             + pt_to_px(figure.label_fontsize, figure.dpi) * 1.2
             + tick_mark as f64 * 2.0)
             .round() as u32;
@@ -173,10 +171,7 @@ fn draw_panel_in_area<DB: DrawingBackend>(
     // Matplotlib: title sits above the Axes box with axes.titlepad — reserve
     // vertical room only when a title is set. Do not use plotters `.caption`
     // (that centers on the full panel cell, including y-tick gutters).
-    let has_title = panel
-        .title
-        .as_ref()
-        .is_some_and(|title| !title.is_empty());
+    let has_title = panel.title.as_ref().is_some_and(|title| !title.is_empty());
     let title_band = if has_title {
         title_pad_px(figure.title_fontsize, figure.dpi).min(max_title)
     } else {
@@ -264,9 +259,30 @@ fn draw_panel_in_area<DB: DrawingBackend>(
         .y_label_formatter(&y_formatter);
 
     if panel.show_grid {
-        let grid = RGBColor(MPL_GRID.0, MPL_GRID.1, MPL_GRID.2);
-        mesh.light_line_style(grid);
-        mesh.bold_line_style(grid);
+        if let Some(gs) = panel.grid_style {
+            if gs.color.is_some() || (gs.width - 0.8).abs() > 1e-6 || (gs.alpha - 1.0).abs() > 1e-6
+            {
+                let base = gs
+                    .color
+                    .unwrap_or(crate::color::Color::rgb(MPL_GRID.0, MPL_GRID.1, MPL_GRID.2));
+                let alpha = (base.a as f64 / 255.0) * gs.alpha.clamp(0.0, 1.0);
+                let style = ShapeStyle {
+                    color: RGBAColor(base.r, base.g, base.b, alpha),
+                    filled: false,
+                    stroke_width: stroke_width_px(gs.width, figure.dpi),
+                };
+                mesh.light_line_style(style);
+                mesh.bold_line_style(style);
+            } else {
+                let grid = RGBColor(MPL_GRID.0, MPL_GRID.1, MPL_GRID.2);
+                mesh.light_line_style(grid);
+                mesh.bold_line_style(grid);
+            }
+        } else {
+            let grid = RGBColor(MPL_GRID.0, MPL_GRID.1, MPL_GRID.2);
+            mesh.light_line_style(grid);
+            mesh.bold_line_style(grid);
+        }
     } else {
         mesh.disable_mesh();
     }
@@ -275,22 +291,15 @@ fn draw_panel_in_area<DB: DrawingBackend>(
 
     if custom_x_rotation {
         if let Some(deg) = panel.x_tick_label_rotation.degrees() {
-            draw_angled_x_tick_labels(
-                &chart,
-                panel,
-                deg as f64,
-                tick_px,
-                ymin,
-                tick_mark,
-            )?;
+            draw_angled_x_tick_labels(&chart, panel, deg as f64, tick_px, ymin, tick_mark)?;
         }
     }
 
     let clip = ClipRect {
-        xmin,
-        xmax,
-        ymin,
-        ymax,
+        xmin: xmin.min(xmax),
+        xmax: xmin.max(xmax),
+        ymin: ymin.min(ymax),
+        ymax: ymin.max(ymax),
     };
     let mut colorbar: Option<(Normalize, Colormap)> = None;
     for series in &panel.series {
@@ -315,16 +324,12 @@ fn draw_panel_in_area<DB: DrawingBackend>(
             // Right-hand colorbar strip: left margin is everything except bar_px.
             let bar_area = area.margin(0, 0, area_width_px.saturating_sub(bar_px), 0);
             draw_colorbar_in_area(
-                &bar_area,
-                normalize,
-                colormap,
-                tick_px,
-                ymin,
-                ymax,
-                figure.dpi,
+                &bar_area, normalize, colormap, tick_px, ymin, ymax, figure.dpi,
             )?;
         } else {
-            draw_colorbar(&mut chart, normalize, colormap, xmin, xmax, ymin, ymax, figure.dpi)?;
+            draw_colorbar(
+                &mut chart, normalize, colormap, xmin, xmax, ymin, ymax, figure.dpi,
+            )?;
         }
     }
 

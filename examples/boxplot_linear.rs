@@ -11,14 +11,13 @@ fn main() -> Result<()> {
 
     let figure = Figure::builder()
         .panel(GridPos::new(1, 1, 1), |p| {
-            p.boxplot(&groups, BoxplotStyle::new())
-                .axes(
-                    AxesStyle::new()
-                        .title("Boxplot (linear y)")
-                        .x_label("category")
-                        .y_label("value")
-                        .x_tick_labels(&ticks, &labels),
-                );
+            p.boxplot(&groups, BoxplotStyle::new()).axes(
+                AxesStyle::new()
+                    .title("Boxplot (linear y)")
+                    .x_label("category")
+                    .y_label("value")
+                    .x_tick_labels(&ticks, &labels),
+            );
         })
         .build()?;
 

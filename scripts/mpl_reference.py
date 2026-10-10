@@ -221,6 +221,64 @@ def write_line_log_log() -> None:
     save(fig, "line_log_log.png")
 
 
+def write_scatter() -> None:
+    x = [0.0, 1.0, 2.0, 3.0, 4.0]
+    y = [1.0, 3.0, 2.0, 5.0, 4.0]
+    fig, ax = plt.subplots(figsize=(6.4, 4.8))
+    ax.scatter(x, y, color="#1f77b4")
+    ax.set_title("Scatter plot")
+    ax.set_xlabel("x")
+    ax.set_ylabel("y")
+    save(fig, "scatter.png")
+
+
+def write_step() -> None:
+    x = [0.0, 1.0, 2.0, 3.0, 4.0]
+    y = [1.0, 3.0, 2.0, 4.0, 2.5]
+    fig, ax = plt.subplots(figsize=(6.4, 4.8))
+    ax.step(x, y, color="#1f77b4", where="pre")
+    ax.set_title("Step plot")
+    ax.set_xlabel("x")
+    ax.set_ylabel("y")
+    save(fig, "step.png")
+
+
+def write_barh() -> None:
+    y = [1.0, 2.0, 3.0, 4.0]
+    widths = [3.0, 7.0, 5.0, 9.0]
+    fig, ax = plt.subplots(figsize=(6.4, 4.8))
+    ax.barh(y, widths, height=0.8, color="#1f77b4")
+    ax.set_title("Horizontal bar chart")
+    ax.set_xlabel("width")
+    ax.set_ylabel("y")
+    save(fig, "barh.png")
+
+
+def write_errorbar() -> None:
+    x = [0.0, 1.0, 2.0, 3.0, 4.0]
+    y = [1.0, 2.5, 2.0, 4.0, 3.5]
+    yerr = [0.2, 0.4, 0.3, 0.5, 0.3]
+    fig, ax = plt.subplots(figsize=(6.4, 4.8))
+    ax.errorbar(x, y, yerr=yerr, fmt="o", color="#1f77b4", capsize=3)
+    ax.set_title("Errorbar plot")
+    ax.set_xlabel("x")
+    ax.set_ylabel("y")
+    save(fig, "errorbar.png")
+
+
+def write_violinplot() -> None:
+    data = [
+        [1.0, 2.0, 2.5, 3.0, 3.5, 4.0, 5.0],
+        [2.0, 3.0, 3.5, 4.0, 4.5, 5.5, 6.0],
+    ]
+    fig, ax = plt.subplots(figsize=(6.4, 4.8))
+    ax.violinplot(data)
+    ax.set_title("Violin plot")
+    ax.set_xlabel("group")
+    ax.set_ylabel("value")
+    save(fig, "violinplot.png")
+
+
 if __name__ == "__main__":
     apply_mplot_rcparams()
     write_simple_line()
@@ -237,4 +295,9 @@ if __name__ == "__main__":
     write_contour()
     write_line_log_x()
     write_line_log_log()
+    write_scatter()
+    write_step()
+    write_barh()
+    write_errorbar()
+    write_violinplot()
     print(f"wrote reference figures under {OUT}")

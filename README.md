@@ -44,6 +44,10 @@ cargo run --example simple_line
 cargo run --example subplot_lines
 cargo run --example boxplot_linear
 cargo run --example boxplot_log
+cargo run --example scatter_errorbar
+cargo run --example bar_histogram
+cargo run --example violin_plot
+cargo run --example gridspec_layout
 cargo run --example gallery
 ```
 
@@ -52,14 +56,14 @@ cargo run --example gallery
 | Type | Role |
 |------|------|
 | `Figure` / `FigureBuilder` | Root document; size, panels, export |
-| `PanelBuilder` | One subplot: add series + attach `AxesStyle` |
-| `Series` | Enum of plot kinds (`Line`, `Boxplot`, …) |
-| `LineStyle`, `BoxplotStyle`, … | Per-series styling |
-| `AxesStyle` | Labels, scales, limits, ticks, grid |
+| `PanelBuilder` | One subplot: add series (`line`, `scatter`, `errorbar`, `step`, `boxplot`, `violinplot`, `bar`, `barh`, `histogram`, `fill_between`, `image`, `contour`, `annotate`, `axhline`, `axvline`, `axhspan`, `axvspan`) + attach `AxesStyle` |
+| `Series` | Enum of plot kinds (`Line`, `Scatter`, `ErrorBar`, `Step`, `Boxplot`, `Violin`, `Bar`, `BarH`, `Annotation`, …) |
+| `LineStyle`, `ScatterStyle`, `ErrorBarStyle`, `ViolinStyle`, … | Per-series styling |
+| `AxesStyle` | Labels, scales, limits, inverted axes, ticks, grid (`GridStyle`) |
 | `GridPos` | Subplot address (rows, cols, index) |
 | `GridSpec` / `SubplotSlot` | Irregular grids with rowspan/colspan |
 | `ExportFormat` | PNG, SVG, or PDF export (from path extension or `SaveOptions`) |
-| `Color`, `Scale`, `LineDash` | Typed styling enums |
+| `Color`, `Scale`, `LineDash`, `Marker`, `Colormap` | Typed styling enums |
 | `SaveOptions` | dpi (default 200), tight bbox, pad |
 
 Typical flow:
@@ -73,21 +77,26 @@ Import everything common via `use mplot::prelude::*;`.
 ## Features
 
 - Subplot grids via `GridPos` or `GridSpec` (rowspan/colspan)
+- Rich series: line, scatter, error bars (with caps), step curves, vertical/horizontal bar charts, histograms, shaded regions (`fill_between`, `axhspan`, `axvspan`), annotations with callout arrows (`annotate`), reference lines (`axhline`, `axvline`), boxplots, violin plots (KDE density, medians, extrema), heatmaps (`image`), and contour lines
+- Inverted axes and reverse ranges (`invert_x(true)`, `invert_y(true)`, or `y_range(max, min)`)
+- Custom grid styling (`GridStyle::new().color(...).width(...).alpha(...)`)
 - PNG, SVG, and PDF export (`figure.save("out.pdf", …)`)
 - Constrained layout for multi-panel figures and colorbar insets (`.constrained_layout(true)`)
 - Linear and log x/y scales (`Scale::Log` on `AxesStyle::x_scale` / `y_scale`)
-- Custom tick labels (`AxesStyle::x_tick_labels`)
+- Custom tick labels and rotated tick labels (`AxesStyle::x_tick_labels`, `AxesStyle::x_tick_rotation`)
+- Matplotlib standard markers: `Circle`, `Square`, `Cross`, `Plus`, `TriangleUp`, `TriangleDown`, `Diamond`, `Star`
+- Perceptual colormaps: `Viridis`, `Plasma`, `Inferno`, `Magma`, `Cividis`, `Coolwarm`, `Turbo`
 - Figure size in inches (`Size::inches`); PNG saves default to **200 DPI** for sharp text (override with `SaveOptions::dpi`)
-- Matplotlib-inspired default styling (DejaVu Sans, default line width, boxplot colors)
+- Matplotlib-inspired default styling (DejaVu Sans, default line width, boxplot colors, axes titles centered on axes box)
 
 ## Fidelity tests
 
 `.venv/bin/python scripts/mpl_reference.py` generates Matplotlib reference PNGs under `tests/fidelity/golden/` (uses explicit rcParams synced with `src/render/mpl_style.rs`). Run `cargo test --test fidelity` to compare mplot output against those references.
 
-Covered chart types: line, subplots, boxplot (linear/log y), bar, histogram, fill_between, image (viridis), contour, and log-x / log-log line plots.
+Covered chart types: line, subplots, boxplot (linear/log y), violin plot, bar, horizontal bar, histogram, fill_between, image (viridis), contour, scatter, step, errorbar, and log-x / log-log line plots.
 
 See the rcParams mapping table in [`src/render/mpl_style.rs`](src/render/mpl_style.rs).
 
 ## Status
 
-Early development. Line, boxplot, bar, histogram, fill-between, image, and contour series are supported with legend, markers, and colormaps. PNG, SVG, and PDF export plus GridSpec layouts are available.
+Active development with Matplotlib parity as the north star. Line, scatter, errorbar, step, boxplot, violinplot, bar, barh, histogram, fill-between, image, contour, annotations, and reference line/span series are supported with legends, markers, and colormaps. PNG, SVG, and PDF export plus GridSpec layouts are available.

@@ -1,4 +1,4 @@
-use plotters::style::{RGBColor, RGBAColor};
+use plotters::style::{RGBAColor, RGBColor};
 
 /// RGBA color for series and axes styling.
 ///

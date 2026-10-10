@@ -1,3 +1,4 @@
+pub mod canvas;
 pub mod export;
 pub mod layout;
 pub mod legend;
@@ -8,4 +9,3 @@ pub mod png;
 pub mod primitives;
 pub mod scene;
 pub mod svg;
-pub mod canvas;

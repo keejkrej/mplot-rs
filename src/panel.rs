@@ -51,7 +51,10 @@ impl TickLabels {
     pub fn new(ticks: &[f64], labels: &[impl AsRef<str>]) -> Self {
         TickLabels {
             ticks: ticks.to_vec(),
-            labels: labels.iter().map(|label| label.as_ref().to_string()).collect(),
+            labels: labels
+                .iter()
+                .map(|label| label.as_ref().to_string())
+                .collect(),
         }
     }
 
@@ -76,7 +79,54 @@ impl LegendStyle {
     }
 }
 
+use crate::color::Color;
 use crate::series::Scale;
+
+/// Grid line styling (matplotlib `ax.grid(...)`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct GridStyle {
+    pub show: bool,
+    pub color: Option<Color>,
+    pub width: f64,
+    pub alpha: f64,
+}
+
+impl Default for GridStyle {
+    fn default() -> Self {
+        GridStyle {
+            show: true,
+            color: None,
+            width: 0.8,
+            alpha: 1.0,
+        }
+    }
+}
+
+impl GridStyle {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn show(mut self, show: bool) -> Self {
+        self.show = show;
+        self
+    }
+
+    pub fn color(mut self, color: Color) -> Self {
+        self.color = Some(color);
+        self
+    }
+
+    pub fn width(mut self, width: f64) -> Self {
+        self.width = width;
+        self
+    }
+
+    pub fn alpha(mut self, alpha: f64) -> Self {
+        self.alpha = alpha.clamp(0.0, 1.0);
+        self
+    }
+}
 
 /// How automatic tick labels are formatted (custom tick labels override this).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -142,7 +192,9 @@ pub struct AxesStyle {
     y_scale: Scale,
     x_range: Option<(f64, f64)>,
     y_range: Option<(f64, f64)>,
-    grid: bool,
+    invert_x: bool,
+    invert_y: bool,
+    grid: Option<GridStyle>,
     hide: bool,
     x_ticks: Option<TickLabels>,
     y_ticks: Option<TickLabels>,
@@ -183,17 +235,44 @@ impl AxesStyle {
     }
 
     pub fn x_range(mut self, min: f64, max: f64) -> Self {
-        self.x_range = Some((min, max));
+        if min > max {
+            self.invert_x = true;
+            self.x_range = Some((max, min));
+        } else {
+            self.x_range = Some((min, max));
+        }
         self
     }
 
     pub fn y_range(mut self, min: f64, max: f64) -> Self {
-        self.y_range = Some((min, max));
+        if min > max {
+            self.invert_y = true;
+            self.y_range = Some((max, min));
+        } else {
+            self.y_range = Some((min, max));
+        }
+        self
+    }
+
+    pub fn invert_x(mut self, invert: bool) -> Self {
+        self.invert_x = invert;
+        self
+    }
+
+    pub fn invert_y(mut self, invert: bool) -> Self {
+        self.invert_y = invert;
         self
     }
 
     pub fn grid(mut self, show: bool) -> Self {
-        self.grid = show;
+        let mut style = self.grid.unwrap_or_default();
+        style.show = show;
+        self.grid = Some(style);
+        self
+    }
+
+    pub fn grid_style(mut self, style: GridStyle) -> Self {
+        self.grid = Some(style);
         self
     }
 
@@ -211,7 +290,10 @@ impl AxesStyle {
         if labels.len() == ticks.vec_size() {
             self.x_ticks = Some(TickLabels {
                 ticks: vector_to_f64(ticks),
-                labels: labels.iter().map(|label| label.as_ref().to_string()).collect(),
+                labels: labels
+                    .iter()
+                    .map(|label| label.as_ref().to_string())
+                    .collect(),
             });
         }
         self
@@ -226,7 +308,10 @@ impl AxesStyle {
         if labels.len() == ticks.vec_size() {
             self.y_ticks = Some(TickLabels {
                 ticks: vector_to_f64(ticks),
-                labels: labels.iter().map(|label| label.as_ref().to_string()).collect(),
+                labels: labels
+                    .iter()
+                    .map(|label| label.as_ref().to_string())
+                    .collect(),
             });
         }
         self
@@ -281,8 +366,20 @@ impl AxesStyle {
         self.y_range
     }
 
-    pub(crate) fn grid_value(&self) -> bool {
+    pub(crate) fn invert_x_value(&self) -> bool {
+        self.invert_x
+    }
+
+    pub(crate) fn invert_y_value(&self) -> bool {
+        self.invert_y
+    }
+
+    pub(crate) fn grid_style_value(&self) -> Option<GridStyle> {
         self.grid
+    }
+
+    pub(crate) fn grid_value(&self) -> bool {
+        self.grid.map(|g| g.show).unwrap_or(false)
     }
 
     pub(crate) fn hide_value(&self) -> bool {
@@ -332,7 +429,12 @@ pub struct PanelBuilder<'a> {
 }
 
 impl<'a> PanelBuilder<'a> {
-    pub fn line<'b, T, U>(&mut self, x: &'b T, y: &'b T, style: crate::series::LineStyle) -> &mut Self
+    pub fn line<'b, T, U>(
+        &mut self,
+        x: &'b T,
+        y: &'b T,
+        style: crate::series::LineStyle,
+    ) -> &mut Self
     where
         T: AsVector<'b, U>,
         U: 'b + Num + NumCast + Copy,
@@ -343,10 +445,73 @@ impl<'a> PanelBuilder<'a> {
         self
     }
 
-    pub fn boxplot(&mut self, groups: &[Vec<f64>], style: crate::series::BoxplotStyle) -> &mut Self {
+    pub fn scatter<'b, T, U>(
+        &mut self,
+        x: &'b T,
+        y: &'b T,
+        style: crate::series::ScatterStyle,
+    ) -> &mut Self
+    where
+        T: AsVector<'b, U>,
+        U: 'b + Num + NumCast + Copy,
+    {
+        self.spec
+            .series
+            .push(crate::series::Series::scatter(x, y, style));
+        self
+    }
+
+    pub fn errorbar<'b, T, U>(
+        &mut self,
+        x: &'b T,
+        y: &'b T,
+        style: crate::series::ErrorBarStyle,
+    ) -> &mut Self
+    where
+        T: AsVector<'b, U>,
+        U: 'b + Num + NumCast + Copy,
+    {
+        self.spec
+            .series
+            .push(crate::series::Series::errorbar(x, y, style));
+        self
+    }
+
+    pub fn step<'b, T, U>(
+        &mut self,
+        x: &'b T,
+        y: &'b T,
+        style: crate::series::StepStyle,
+    ) -> &mut Self
+    where
+        T: AsVector<'b, U>,
+        U: 'b + Num + NumCast + Copy,
+    {
+        self.spec
+            .series
+            .push(crate::series::Series::step(x, y, style));
+        self
+    }
+
+    pub fn boxplot(
+        &mut self,
+        groups: &[Vec<f64>],
+        style: crate::series::BoxplotStyle,
+    ) -> &mut Self {
         self.spec
             .series
             .push(crate::series::Series::boxplot(groups, style));
+        self
+    }
+
+    pub fn violinplot(
+        &mut self,
+        groups: &[Vec<f64>],
+        style: crate::series::ViolinStyle,
+    ) -> &mut Self {
+        self.spec
+            .series
+            .push(crate::series::Series::violin(groups.to_vec(), style));
         self
     }
 
@@ -354,6 +519,22 @@ impl<'a> PanelBuilder<'a> {
         self.spec
             .series
             .push(crate::series::Series::bar(x, heights, style));
+        self
+    }
+
+    pub fn barh<'b, T, U>(
+        &mut self,
+        y: &'b T,
+        widths: &'b T,
+        style: crate::series::BarHStyle,
+    ) -> &mut Self
+    where
+        T: AsVector<'b, U>,
+        U: 'b + Num + NumCast + Copy,
+    {
+        self.spec
+            .series
+            .push(crate::series::Series::barh(y, widths, style));
         self
     }
 
@@ -417,6 +598,57 @@ impl<'a> PanelBuilder<'a> {
         self.spec
             .series
             .push(crate::series::Series::text(x, y, text, style));
+        self
+    }
+
+    pub fn annotate(
+        &mut self,
+        text: impl Into<String>,
+        xy: (f64, f64),
+        xytext: (f64, f64),
+        style: crate::series::AnnotationStyle,
+    ) -> &mut Self {
+        self.spec
+            .series
+            .push(crate::series::Series::annotate(text, xy, xytext, style));
+        self
+    }
+
+    pub fn axhline(&mut self, y: f64, style: crate::series::LineStyle) -> &mut Self {
+        self.spec
+            .series
+            .push(crate::series::Series::axhline(y, style));
+        self
+    }
+
+    pub fn axvline(&mut self, x: f64, style: crate::series::LineStyle) -> &mut Self {
+        self.spec
+            .series
+            .push(crate::series::Series::axvline(x, style));
+        self
+    }
+
+    pub fn axhspan(
+        &mut self,
+        ymin: f64,
+        ymax: f64,
+        style: crate::series::FillBetweenStyle,
+    ) -> &mut Self {
+        self.spec
+            .series
+            .push(crate::series::Series::axhspan(ymin, ymax, style));
+        self
+    }
+
+    pub fn axvspan(
+        &mut self,
+        xmin: f64,
+        xmax: f64,
+        style: crate::series::FillBetweenStyle,
+    ) -> &mut Self {
+        self.spec
+            .series
+            .push(crate::series::Series::axvspan(xmin, xmax, style));
         self
     }
 

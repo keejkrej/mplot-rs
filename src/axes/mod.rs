@@ -40,10 +40,7 @@ impl PanelScales {
     }
 
     pub fn map_xy(self, x: f64, y: f64) -> (f64, f64) {
-        (
-            self.x.data_to_axis(x),
-            self.y.data_to_axis(y),
-        )
+        (self.x.data_to_axis(x), self.y.data_to_axis(y))
     }
 }
 
@@ -108,6 +105,42 @@ pub fn data_bounds(panel: &CompiledPanel) -> DataBounds {
                             if y_scale.usable(*value) {
                                 ymin = ymin.min(*value);
                                 ymax = ymax.max(*value);
+                            }
+                        }
+                    }
+                }
+            }
+            CompiledSeries::Violin(violin) => {
+                let positions: Vec<f64> = if !violin.style.positions_value().is_empty() {
+                    violin.style.positions_value().to_vec()
+                } else {
+                    (1..=violin.groups.len()).map(|i| i as f64).collect()
+                };
+                let half = 0.5 * violin.style.width_value();
+                let vert = violin.style.vert_value();
+                if vert {
+                    for pos in &positions {
+                        xmin = xmin.min(*pos - half);
+                        xmax = xmax.max(*pos + half);
+                    }
+                    for group in &violin.groups {
+                        for value in group {
+                            if y_scale.usable(*value) {
+                                ymin = ymin.min(*value);
+                                ymax = ymax.max(*value);
+                            }
+                        }
+                    }
+                } else {
+                    for pos in &positions {
+                        ymin = ymin.min(*pos - half);
+                        ymax = ymax.max(*pos + half);
+                    }
+                    for group in &violin.groups {
+                        for value in group {
+                            if x_scale.usable(*value) {
+                                xmin = xmin.min(*value);
+                                xmax = xmax.max(*value);
                             }
                         }
                     }
@@ -188,6 +221,135 @@ pub fn data_bounds(panel: &CompiledPanel) -> DataBounds {
                     ymax = ymax.max(text.y);
                 }
             }
+            CompiledSeries::Scatter(scatter) => {
+                for (x, y) in scatter.x.iter().zip(scatter.y.iter()) {
+                    if x_scale.usable(*x) {
+                        xmin = xmin.min(*x);
+                        xmax = xmax.max(*x);
+                    }
+                    if y_scale.usable(*y) {
+                        ymin = ymin.min(*y);
+                        ymax = ymax.max(*y);
+                    }
+                }
+            }
+            CompiledSeries::Step(step) => {
+                for (x, y) in step.x.iter().zip(step.y.iter()) {
+                    if x_scale.usable(*x) {
+                        xmin = xmin.min(*x);
+                        xmax = xmax.max(*x);
+                    }
+                    if y_scale.usable(*y) {
+                        ymin = ymin.min(*y);
+                        ymax = ymax.max(*y);
+                    }
+                }
+            }
+            CompiledSeries::ErrorBar(err) => {
+                for (i, (&x, &y)) in err.x.iter().zip(err.y.iter()).enumerate() {
+                    let x_lo = err
+                        .xerr_lower
+                        .as_ref()
+                        .and_then(|e| e.get(i))
+                        .or_else(|| err.xerr.as_ref().and_then(|e| e.get(i)))
+                        .copied()
+                        .unwrap_or(0.0);
+                    let x_hi = err
+                        .xerr
+                        .as_ref()
+                        .and_then(|e| e.get(i))
+                        .copied()
+                        .unwrap_or(0.0);
+                    let y_lo = err
+                        .yerr_lower
+                        .as_ref()
+                        .and_then(|e| e.get(i))
+                        .or_else(|| err.yerr.as_ref().and_then(|e| e.get(i)))
+                        .copied()
+                        .unwrap_or(0.0);
+                    let y_hi = err
+                        .yerr
+                        .as_ref()
+                        .and_then(|e| e.get(i))
+                        .copied()
+                        .unwrap_or(0.0);
+
+                    if x_scale.usable(x - x_lo) {
+                        xmin = xmin.min(x - x_lo);
+                    }
+                    if x_scale.usable(x + x_hi) {
+                        xmax = xmax.max(x + x_hi);
+                    }
+                    if y_scale.usable(y - y_lo) {
+                        ymin = ymin.min(y - y_lo);
+                    }
+                    if y_scale.usable(y + y_hi) {
+                        ymax = ymax.max(y + y_hi);
+                    }
+                }
+            }
+            CompiledSeries::BarH(barh) => {
+                let half = barh.height / 2.0;
+                for (y, width) in barh.y.iter().zip(barh.widths.iter()) {
+                    ymin = ymin.min(*y - half);
+                    ymax = ymax.max(*y + half);
+                    if x_scale.usable(barh.baseline) {
+                        xmin = xmin.min(barh.baseline);
+                        xmax = xmax.max(barh.baseline);
+                    }
+                    let right = barh.baseline + *width;
+                    if x_scale.usable(right) {
+                        xmin = xmin.min(right);
+                        xmax = xmax.max(right);
+                    }
+                }
+            }
+            CompiledSeries::Annotation(ann) => {
+                if x_scale.usable(ann.xy.0) {
+                    xmin = xmin.min(ann.xy.0);
+                    xmax = xmax.max(ann.xy.0);
+                }
+                if x_scale.usable(ann.xytext.0) {
+                    xmin = xmin.min(ann.xytext.0);
+                    xmax = xmax.max(ann.xytext.0);
+                }
+                if y_scale.usable(ann.xy.1) {
+                    ymin = ymin.min(ann.xy.1);
+                    ymax = ymax.max(ann.xy.1);
+                }
+                if y_scale.usable(ann.xytext.1) {
+                    ymin = ymin.min(ann.xytext.1);
+                    ymax = ymax.max(ann.xytext.1);
+                }
+            }
+            CompiledSeries::AxHLine(line) => {
+                if y_scale.usable(line.y) {
+                    ymin = ymin.min(line.y);
+                    ymax = ymax.max(line.y);
+                }
+            }
+            CompiledSeries::AxVLine(line) => {
+                if x_scale.usable(line.x) {
+                    xmin = xmin.min(line.x);
+                    xmax = xmax.max(line.x);
+                }
+            }
+            CompiledSeries::AxHSpan(span) => {
+                if y_scale.usable(span.ymin) {
+                    ymin = ymin.min(span.ymin);
+                }
+                if y_scale.usable(span.ymax) {
+                    ymax = ymax.max(span.ymax);
+                }
+            }
+            CompiledSeries::AxVSpan(span) => {
+                if x_scale.usable(span.xmin) {
+                    xmin = xmin.min(span.xmin);
+                }
+                if x_scale.usable(span.xmax) {
+                    xmax = xmax.max(span.xmax);
+                }
+            }
         }
     }
 
@@ -241,23 +403,27 @@ pub fn view_limits(panel: &CompiledPanel, data: DataBounds) -> ViewLimits {
         ymax = hi;
     }
 
-    ViewLimits {
-        x: (
-            x_scale.data_to_axis(xmin),
-            x_scale.data_to_axis(xmax),
-        ),
-        y: (
-            y_scale.data_to_axis(ymin),
-            y_scale.data_to_axis(ymax),
-        ),
+    let mut x_lim = (x_scale.data_to_axis(xmin), x_scale.data_to_axis(xmax));
+    let mut y_lim = (y_scale.data_to_axis(ymin), y_scale.data_to_axis(ymax));
+    if panel.invert_x {
+        x_lim = (x_lim.1, x_lim.0);
     }
+    if panel.invert_y {
+        y_lim = (y_lim.1, y_lim.0);
+    }
+
+    ViewLimits { x: x_lim, y: y_lim }
 }
 
 pub fn tick_plan(panel: &CompiledPanel, view: ViewLimits) -> TickPlan {
     let x_scale = AxisScale::from_log_flag(panel.log_x);
     let y_scale = AxisScale::from_log_flag(panel.log_y);
-    let (xmin, xmax) = view.x;
-    let (ymin, ymax) = view.y;
+    let (x0, x1) = view.x;
+    let (y0, y1) = view.y;
+    let xmin = x0.min(x1);
+    let xmax = x0.max(x1);
+    let ymin = y0.min(y1);
+    let ymax = y0.max(y1);
 
     let (x_count, x_label_map, custom_x) = axis_ticks(
         panel.ticks_x.as_ref(),
@@ -364,7 +530,11 @@ fn histogram_bounds(data: &[f64], bins: usize) -> Option<((f64, f64), f64)> {
     values.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
     let min = *values.first()?;
     let max = *values.last()?;
-    let span = if (max - min).abs() < 1e-12 { 1.0 } else { max - min };
+    let span = if (max - min).abs() < 1e-12 {
+        1.0
+    } else {
+        max - min
+    };
     let step = span / bins as f64;
     let mut counts = vec![0.0; bins];
     for value in values {
@@ -381,8 +551,8 @@ fn histogram_bounds(data: &[f64], bins: usize) -> Option<((f64, f64), f64)> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::render::model::{CompiledSeries, LineSeries};
     use crate::color::Color;
+    use crate::render::model::{CompiledSeries, LineSeries};
     use crate::series::LineDash;
 
     fn sample_panel(log_x: bool, log_y: bool) -> CompiledPanel {
@@ -398,10 +568,13 @@ mod tests {
             ylabel: None,
             xrange: None,
             yrange: None,
+            invert_x: false,
+            invert_y: false,
             log_x,
             log_y,
             hide_axes: false,
             show_grid: false,
+            grid_style: None,
             ticks_x: None,
             ticks_y: None,
             x_tick_format: Default::default(),

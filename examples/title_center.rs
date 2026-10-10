@@ -28,7 +28,10 @@ fn main() -> Result<()> {
         .build()?;
 
     std::fs::create_dir_all("/tmp/mplot").ok();
-    figure.save("/tmp/mplot/title_center.png", SaveOptions::default().dpi(100))?;
+    figure.save(
+        "/tmp/mplot/title_center.png",
+        SaveOptions::default().dpi(100),
+    )?;
     println!("wrote /tmp/mplot/title_center.png");
     Ok(())
 }

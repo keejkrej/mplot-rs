@@ -14,14 +14,13 @@ fn main() -> Result<()> {
     let mut builder = Figure::builder().size(Size::inches(10.0, 8.0));
     for (index, (title, color, ys)) in panels.iter().enumerate() {
         builder = builder.panel(GridPos::new(rows, cols, index + 1), |p| {
-            p.line(&xs, ys, LineStyle::new().color(*color))
-                .axes(
-                    AxesStyle::new()
-                        .title(*title)
-                        .x_label("x")
-                        .y_label("y")
-                        .y_range(0.0, 3.0),
-                );
+            p.line(&xs, ys, LineStyle::new().color(*color)).axes(
+                AxesStyle::new()
+                    .title(*title)
+                    .x_label("x")
+                    .y_label("y")
+                    .y_range(0.0, 3.0),
+            );
         });
     }
 

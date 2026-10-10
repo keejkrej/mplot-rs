@@ -23,7 +23,12 @@ pub fn panel_rect_for_slot(
 ) -> PanelRect {
     let use_tight = tight || constrained;
     let (left, right, bottom, top) = if use_tight {
-        (MPL_TIGHT_LEFT, MPL_TIGHT_RIGHT, MPL_TIGHT_BOTTOM, MPL_TIGHT_TOP)
+        (
+            MPL_TIGHT_LEFT,
+            MPL_TIGHT_RIGHT,
+            MPL_TIGHT_BOTTOM,
+            MPL_TIGHT_TOP,
+        )
     } else {
         (
             MPL_SUBPLOT_LEFT,
@@ -48,15 +53,15 @@ pub fn panel_rect_for_slot(
     let gap_h_frac = gap_h / fh;
 
     let x = (left * fw + slot.col() as f64 * (cell_w + gap_w)).round() as u32;
-    let width = (slot.colspan() as f64 * cell_w
-        + slot.colspan().saturating_sub(1) as f64 * gap_w)
+    let width = (slot.colspan() as f64 * cell_w + slot.colspan().saturating_sub(1) as f64 * gap_w)
         .max(1.0)
         .round() as u32;
 
-    let mpl_bottom_frac = bottom
-        + (rows - slot.row() - slot.rowspan()) as f64 * (cell_h_frac + gap_h_frac);
-    let mpl_top_frac =
-        mpl_bottom_frac + slot.rowspan() as f64 * cell_h_frac + (slot.rowspan().saturating_sub(1) as f64) * gap_h_frac;
+    let mpl_bottom_frac =
+        bottom + (rows - slot.row() - slot.rowspan()) as f64 * (cell_h_frac + gap_h_frac);
+    let mpl_top_frac = mpl_bottom_frac
+        + slot.rowspan() as f64 * cell_h_frac
+        + (slot.rowspan().saturating_sub(1) as f64) * gap_h_frac;
 
     PanelRect {
         x,
@@ -83,7 +88,13 @@ mod tests {
         for row in 0..2 {
             for col in 0..2 {
                 panels.push(panel_rect_for_slot(
-                    1000, 800, &gs.at(row, col), 0.2, 0.2, false, false,
+                    1000,
+                    800,
+                    &gs.at(row, col),
+                    0.2,
+                    0.2,
+                    false,
+                    false,
                 ));
             }
         }
