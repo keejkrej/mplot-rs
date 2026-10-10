@@ -51,6 +51,22 @@ pub fn collect_entries(series: &[CompiledSeries]) -> Vec<LegendEntry> {
                 patch: false,
                 marker: Marker::None,
             }),
+            CompiledSeries::Violin(violin)
+                if violin.style.label_value().is_some_and(|l| !l.is_empty()) =>
+            {
+                let color = violin
+                    .style
+                    .face_color_value()
+                    .unwrap_or(crate::color::Color::hex("#1f77b4"));
+                Some(LegendEntry {
+                    label: violin.style.label_value().unwrap().to_string(),
+                    color,
+                    dash: LineDash::Solid,
+                    width: 1.0,
+                    patch: true,
+                    marker: Marker::None,
+                })
+            }
             CompiledSeries::Bar(bar) if !bar.label.is_empty() => Some(LegendEntry {
                 label: bar.label.clone(),
                 color: bar.color,

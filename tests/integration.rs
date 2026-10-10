@@ -751,3 +751,51 @@ fn test_grid_style() -> Result<()> {
     assert!(metadata.len() > 1_000);
     Ok(())
 }
+
+#[test]
+fn test_violinplot() -> Result<()> {
+    std::fs::create_dir_all(OUT_DIR).ok();
+
+    let g1 = vec![1.0, 2.0, 2.5, 3.0, 3.5, 4.0, 5.0];
+    let g2 = vec![2.0, 3.0, 3.5, 4.0, 4.5, 5.5, 6.0];
+    let datasets = [g1, g2];
+
+    let figure = Figure::builder()
+        .panel(GridPos::new(1, 2, 1), |p| {
+            p.violinplot(
+                &datasets,
+                ViolinStyle::new()
+                    .show_means(true)
+                    .show_medians(true)
+                    .show_extrema(true),
+            )
+            .axes(
+                AxesStyle::new()
+                    .title("Vertical Violin")
+                    .x_label("group")
+                    .y_label("value"),
+            );
+        })
+        .panel(GridPos::new(1, 2, 2), |p| {
+            p.violinplot(
+                &datasets,
+                ViolinStyle::new()
+                    .horizontal(true)
+                    .show_extrema(true)
+                    .face_color(Color::hex("#2ca02c")),
+            )
+            .axes(
+                AxesStyle::new()
+                    .title("Horizontal Violin")
+                    .x_label("value")
+                    .y_label("group"),
+            );
+        })
+        .build()?;
+
+    let path = Path::new(OUT_DIR).join("test_violinplot.png");
+    figure.save(&path, SaveOptions::default())?;
+    let metadata = std::fs::metadata(path).map_err(|_| Error::Io("output missing".into()))?;
+    assert!(metadata.len() > 1_000);
+    Ok(())
+}

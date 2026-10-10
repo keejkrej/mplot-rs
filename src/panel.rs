@@ -504,6 +504,17 @@ impl<'a> PanelBuilder<'a> {
         self
     }
 
+    pub fn violinplot(
+        &mut self,
+        groups: &[Vec<f64>],
+        style: crate::series::ViolinStyle,
+    ) -> &mut Self {
+        self.spec
+            .series
+            .push(crate::series::Series::violin(groups.to_vec(), style));
+        self
+    }
+
     pub fn bar(&mut self, x: &[f64], heights: &[f64], style: crate::series::BarStyle) -> &mut Self {
         self.spec
             .series

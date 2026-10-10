@@ -266,6 +266,19 @@ def write_errorbar() -> None:
     save(fig, "errorbar.png")
 
 
+def write_violinplot() -> None:
+    data = [
+        [1.0, 2.0, 2.5, 3.0, 3.5, 4.0, 5.0],
+        [2.0, 3.0, 3.5, 4.0, 4.5, 5.5, 6.0],
+    ]
+    fig, ax = plt.subplots(figsize=(6.4, 4.8))
+    ax.violinplot(data)
+    ax.set_title("Violin plot")
+    ax.set_xlabel("group")
+    ax.set_ylabel("value")
+    save(fig, "violinplot.png")
+
+
 if __name__ == "__main__":
     apply_mplot_rcparams()
     write_simple_line()
@@ -286,4 +299,5 @@ if __name__ == "__main__":
     write_step()
     write_barh()
     write_errorbar()
+    write_violinplot()
     print(f"wrote reference figures under {OUT}")

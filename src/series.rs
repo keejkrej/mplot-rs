@@ -224,6 +224,154 @@ impl BoxplotStyle {
     }
 }
 
+/// Styling for violin plots (matplotlib `ax.violinplot(...)`).
+#[derive(Clone, Debug, PartialEq)]
+pub struct ViolinStyle {
+    width: f64,
+    positions: Vec<f64>,
+    face_color: Option<Color>,
+    edge_color: Option<Color>,
+    show_means: bool,
+    show_extrema: bool,
+    show_medians: bool,
+    vert: bool,
+    alpha: f64,
+    points: usize,
+    label: Option<String>,
+}
+
+impl Default for ViolinStyle {
+    fn default() -> Self {
+        ViolinStyle {
+            width: 0.5,
+            positions: Vec::new(),
+            face_color: None,
+            edge_color: None,
+            show_means: false,
+            show_extrema: true,
+            show_medians: false,
+            vert: true,
+            alpha: 0.3,
+            points: 100,
+            label: None,
+        }
+    }
+}
+
+impl ViolinStyle {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn width(mut self, width: f64) -> Self {
+        self.width = width.max(0.0);
+        self
+    }
+
+    pub fn positions<'a, T, U>(mut self, positions: &'a T) -> Self
+    where
+        T: AsVector<'a, U>,
+        U: 'a + Num + NumCast + Copy,
+    {
+        self.positions = vector_to_f64(positions);
+        self
+    }
+
+    pub fn face_color(mut self, color: Color) -> Self {
+        self.face_color = Some(color);
+        self
+    }
+
+    pub fn edge_color(mut self, color: Color) -> Self {
+        self.edge_color = Some(color);
+        self
+    }
+
+    pub fn show_means(mut self, show: bool) -> Self {
+        self.show_means = show;
+        self
+    }
+
+    pub fn show_extrema(mut self, show: bool) -> Self {
+        self.show_extrema = show;
+        self
+    }
+
+    pub fn show_medians(mut self, show: bool) -> Self {
+        self.show_medians = show;
+        self
+    }
+
+    pub fn vert(mut self, vert: bool) -> Self {
+        self.vert = vert;
+        self
+    }
+
+    pub fn horizontal(mut self, flag: bool) -> Self {
+        self.vert = !flag;
+        self
+    }
+
+    pub fn alpha(mut self, alpha: f64) -> Self {
+        self.alpha = alpha.clamp(0.0, 1.0);
+        self
+    }
+
+    pub fn points(mut self, points: usize) -> Self {
+        self.points = points.max(2);
+        self
+    }
+
+    pub fn label(mut self, label: impl Into<String>) -> Self {
+        self.label = Some(label.into());
+        self
+    }
+
+    pub(crate) fn width_value(&self) -> f64 {
+        self.width
+    }
+
+    pub(crate) fn positions_value(&self) -> &[f64] {
+        &self.positions
+    }
+
+    pub(crate) fn face_color_value(&self) -> Option<Color> {
+        self.face_color
+    }
+
+    pub(crate) fn edge_color_value(&self) -> Option<Color> {
+        self.edge_color
+    }
+
+    pub(crate) fn show_means_value(&self) -> bool {
+        self.show_means
+    }
+
+    pub(crate) fn show_extrema_value(&self) -> bool {
+        self.show_extrema
+    }
+
+    pub(crate) fn show_medians_value(&self) -> bool {
+        self.show_medians
+    }
+
+    pub(crate) fn vert_value(&self) -> bool {
+        self.vert
+    }
+
+    pub(crate) fn alpha_value(&self) -> f64 {
+        self.alpha
+    }
+
+    pub(crate) fn points_value(&self) -> usize {
+        self.points
+    }
+
+    pub(crate) fn label_value(&self) -> Option<&str> {
+        self.label.as_deref()
+    }
+}
+
 /// Styling for bar charts.
 #[derive(Clone, Debug, PartialEq)]
 pub struct BarStyle {
@@ -1250,6 +1398,10 @@ pub enum Series {
         text: String,
         style: AnnotationStyle,
     },
+    Violin {
+        groups: Vec<Vec<f64>>,
+        style: ViolinStyle,
+    },
     AxHLine {
         y: f64,
         style: LineStyle,
@@ -1405,6 +1557,10 @@ impl Series {
             text: text.into(),
             style,
         }
+    }
+
+    pub fn violin(groups: Vec<Vec<f64>>, style: ViolinStyle) -> Self {
+        Series::Violin { groups, style }
     }
 
     pub fn axhline(y: f64, style: LineStyle) -> Self {

@@ -6,7 +6,7 @@ use crate::render::model::{
     AnnotationSeries, AxHLineSeries, AxHSpanSeries, AxVLineSeries, AxVSpanSeries, BarHSeries,
     BarSeries, BoxplotSeries, CompiledFigure, CompiledPanel, CompiledSeries, ContourSeries,
     ErrorBarSeries, FillBetweenSeries, HistSeries, ImageSeries, LineSeries, PanelLayout,
-    ScatterSeries, StepSeries, TextSeries,
+    ScatterSeries, StepSeries, TextSeries, ViolinSeries,
 };
 use crate::series::{Scale, Series};
 
@@ -173,6 +173,10 @@ fn compile_series(series: &Series) -> CompiledSeries {
             width: style.width_value(),
             no_fliers: style.no_fliers_value(),
             patch_artist: style.patch_artist_value(),
+        }),
+        Series::Violin { groups, style } => CompiledSeries::Violin(ViolinSeries {
+            groups: groups.clone(),
+            style: style.clone(),
         }),
         Series::Bar { x, heights, style } => CompiledSeries::Bar(BarSeries {
             x: x.clone(),

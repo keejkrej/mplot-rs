@@ -110,6 +110,42 @@ pub fn data_bounds(panel: &CompiledPanel) -> DataBounds {
                     }
                 }
             }
+            CompiledSeries::Violin(violin) => {
+                let positions: Vec<f64> = if !violin.style.positions_value().is_empty() {
+                    violin.style.positions_value().to_vec()
+                } else {
+                    (1..=violin.groups.len()).map(|i| i as f64).collect()
+                };
+                let half = 0.5 * violin.style.width_value();
+                let vert = violin.style.vert_value();
+                if vert {
+                    for pos in &positions {
+                        xmin = xmin.min(*pos - half);
+                        xmax = xmax.max(*pos + half);
+                    }
+                    for group in &violin.groups {
+                        for value in group {
+                            if y_scale.usable(*value) {
+                                ymin = ymin.min(*value);
+                                ymax = ymax.max(*value);
+                            }
+                        }
+                    }
+                } else {
+                    for pos in &positions {
+                        ymin = ymin.min(*pos - half);
+                        ymax = ymax.max(*pos + half);
+                    }
+                    for group in &violin.groups {
+                        for value in group {
+                            if x_scale.usable(*value) {
+                                xmin = xmin.min(*value);
+                                xmax = xmax.max(*value);
+                            }
+                        }
+                    }
+                }
+            }
             CompiledSeries::Bar(bar) => {
                 let half = bar.width / 2.0;
                 for (x, height) in bar.x.iter().zip(bar.heights.iter()) {

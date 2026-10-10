@@ -64,7 +64,7 @@ pub mod prelude {
         AnnotationStyle, ArrowStyle, BarHStyle, BarStyle, BoxplotStyle, ContourStyle,
         ErrorBarStyle, FillBetweenStyle, HistStyle, HorizontalAlignment, ImageStyle, LineDash,
         LineStyle, Marker, Scale, ScatterStyle, Series, StepStyle, StepWhere, TextStyle,
-        VerticalAlignment,
+        VerticalAlignment, ViolinStyle,
     };
 }
 

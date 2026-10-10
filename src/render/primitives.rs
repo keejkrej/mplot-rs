@@ -10,12 +10,12 @@ use crate::colormap::{Colormap, Normalize};
 use crate::render::model::{
     AnnotationSeries, AxHLineSeries, AxHSpanSeries, AxVLineSeries, AxVSpanSeries, BarHSeries,
     BarSeries, BoxplotSeries, CompiledSeries, ContourSeries, ErrorBarSeries, FillBetweenSeries,
-    HistSeries, ImageSeries, LineSeries, ScatterSeries, StepSeries, TextSeries,
+    HistSeries, ImageSeries, LineSeries, ScatterSeries, StepSeries, TextSeries, ViolinSeries,
 };
 use crate::render::mpl_style::{
     marker_radius_px, stroke_width_px, MPL_FONT, MPL_LINE_WIDTH, MPL_MARKER_SIZE,
 };
-use crate::render::scene::{box_positions, box_stats, default_box_width};
+use crate::render::scene::{box_positions, box_stats, default_box_width, violin_stats};
 use crate::series::{HorizontalAlignment, LineDash, Marker, StepWhere, VerticalAlignment};
 
 type Chart<'a, DB> = ChartContext<'a, DB, Cartesian2d<RangedCoordf64, RangedCoordf64>>;
@@ -43,6 +43,7 @@ pub fn draw_series<DB: DrawingBackend>(
         CompiledSeries::ErrorBar(err) => draw_errorbar(chart, err, scales, dpi, clip),
         CompiledSeries::Step(step) => draw_step(chart, step, scales, dpi, clip),
         CompiledSeries::Boxplot(boxes) => draw_boxplot(chart, boxes, scales, dpi),
+        CompiledSeries::Violin(violin) => draw_violin(chart, violin, scales, dpi),
         CompiledSeries::Bar(bar) => draw_bar(chart, bar, scales, dpi),
         CompiledSeries::BarH(barh) => draw_barh(chart, barh, scales, dpi),
         CompiledSeries::Histogram(hist) => draw_histogram(chart, hist, scales, dpi),
@@ -857,6 +858,184 @@ fn draw_annotation<DB: DrawingBackend>(
         rotation: t_style.rotation_value(),
     };
     draw_text(chart, &text_series, scales, tick_fontsize_px)?;
+    Ok(())
+}
+
+pub fn draw_violin<DB: DrawingBackend>(
+    chart: &mut Chart<'_, DB>,
+    violin: &ViolinSeries,
+    scales: PanelScales,
+    dpi: u32,
+) -> Result<(), &'static str> {
+    if violin.groups.is_empty() {
+        return Ok(());
+    }
+    let positions: Vec<f64> = if !violin.style.positions_value().is_empty() {
+        violin.style.positions_value().to_vec()
+    } else {
+        (1..=violin.groups.len()).map(|i| i as f64).collect()
+    };
+
+    let width = violin.style.width_value();
+    let vert = violin.style.vert_value();
+    let pts = violin.style.points_value();
+    let default_color = crate::color::Color::hex("#1f77b4");
+    let face = violin.style.face_color_value().unwrap_or(default_color);
+    let alpha = (face.a as f64 / 255.0) * violin.style.alpha_value();
+    let fill_style = ShapeStyle {
+        color: RGBAColor(face.r, face.g, face.b, alpha),
+        filled: true,
+        stroke_width: 0,
+    };
+    let edge = violin.style.edge_color_value().unwrap_or(default_color);
+    let line_style = ShapeStyle {
+        color: edge.to_rgba(),
+        filled: false,
+        stroke_width: stroke_width_px(1.5, dpi),
+    };
+
+    for (group, &pos) in violin.groups.iter().zip(positions.iter()) {
+        let Some(stats) = violin_stats(group, pts) else {
+            continue;
+        };
+
+        let mut poly: Vec<(f64, f64)> = Vec::with_capacity(stats.coords.len() * 2 + 1);
+        if vert {
+            for (&coord, &val) in stats.coords.iter().zip(stats.vals.iter()) {
+                let x = scales.x.data_to_axis(pos + 0.5 * width * val);
+                let y = scales.y.data_to_axis(coord);
+                poly.push((x, y));
+            }
+            for (&coord, &val) in stats.coords.iter().zip(stats.vals.iter()).rev() {
+                let x = scales.x.data_to_axis(pos - 0.5 * width * val);
+                let y = scales.y.data_to_axis(coord);
+                poly.push((x, y));
+            }
+        } else {
+            for (&coord, &val) in stats.coords.iter().zip(stats.vals.iter()) {
+                let x = scales.x.data_to_axis(coord);
+                let y = scales.y.data_to_axis(pos + 0.5 * width * val);
+                poly.push((x, y));
+            }
+            for (&coord, &val) in stats.coords.iter().zip(stats.vals.iter()).rev() {
+                let x = scales.x.data_to_axis(coord);
+                let y = scales.y.data_to_axis(pos - 0.5 * width * val);
+                poly.push((x, y));
+            }
+        }
+        if !poly.is_empty() {
+            chart
+                .draw_series(std::iter::once(Polygon::new(poly, fill_style)))
+                .map_err(|_| "failed to draw violin body")?;
+        }
+
+        let half_tick = 0.25 * width;
+        let tick_lo = pos - half_tick;
+        let tick_hi = pos + half_tick;
+
+        if violin.style.show_extrema_value() {
+            if vert {
+                let x = scales.x.data_to_axis(pos);
+                let y0 = scales.y.data_to_axis(stats.min);
+                let y1 = scales.y.data_to_axis(stats.max);
+                chart
+                    .draw_series(std::iter::once(PathElement::new(
+                        vec![(x, y0), (x, y1)],
+                        line_style,
+                    )))
+                    .map_err(|_| "failed to draw violin cbars")?;
+
+                let x0 = scales.x.data_to_axis(tick_lo);
+                let x1 = scales.x.data_to_axis(tick_hi);
+                chart
+                    .draw_series(std::iter::once(PathElement::new(
+                        vec![(x0, y0), (x1, y0)],
+                        line_style,
+                    )))
+                    .map_err(|_| "failed to draw violin cmins")?;
+                chart
+                    .draw_series(std::iter::once(PathElement::new(
+                        vec![(x0, y1), (x1, y1)],
+                        line_style,
+                    )))
+                    .map_err(|_| "failed to draw violin cmaxes")?;
+            } else {
+                let y = scales.y.data_to_axis(pos);
+                let x0 = scales.x.data_to_axis(stats.min);
+                let x1 = scales.x.data_to_axis(stats.max);
+                chart
+                    .draw_series(std::iter::once(PathElement::new(
+                        vec![(x0, y), (x1, y)],
+                        line_style,
+                    )))
+                    .map_err(|_| "failed to draw violin cbars")?;
+
+                let y0 = scales.y.data_to_axis(tick_lo);
+                let y1 = scales.y.data_to_axis(tick_hi);
+                chart
+                    .draw_series(std::iter::once(PathElement::new(
+                        vec![(x0, y0), (x0, y1)],
+                        line_style,
+                    )))
+                    .map_err(|_| "failed to draw violin cmins")?;
+                chart
+                    .draw_series(std::iter::once(PathElement::new(
+                        vec![(x1, y0), (x1, y1)],
+                        line_style,
+                    )))
+                    .map_err(|_| "failed to draw violin cmaxes")?;
+            }
+        }
+
+        if violin.style.show_means_value() {
+            if vert {
+                let x0 = scales.x.data_to_axis(tick_lo);
+                let x1 = scales.x.data_to_axis(tick_hi);
+                let y = scales.y.data_to_axis(stats.mean);
+                chart
+                    .draw_series(std::iter::once(PathElement::new(
+                        vec![(x0, y), (x1, y)],
+                        line_style,
+                    )))
+                    .map_err(|_| "failed to draw violin cmeans")?;
+            } else {
+                let y0 = scales.y.data_to_axis(tick_lo);
+                let y1 = scales.y.data_to_axis(tick_hi);
+                let x = scales.x.data_to_axis(stats.mean);
+                chart
+                    .draw_series(std::iter::once(PathElement::new(
+                        vec![(x, y0), (x, y1)],
+                        line_style,
+                    )))
+                    .map_err(|_| "failed to draw violin cmeans")?;
+            }
+        }
+
+        if violin.style.show_medians_value() {
+            if vert {
+                let x0 = scales.x.data_to_axis(tick_lo);
+                let x1 = scales.x.data_to_axis(tick_hi);
+                let y = scales.y.data_to_axis(stats.median);
+                chart
+                    .draw_series(std::iter::once(PathElement::new(
+                        vec![(x0, y), (x1, y)],
+                        line_style,
+                    )))
+                    .map_err(|_| "failed to draw violin cmedians")?;
+            } else {
+                let y0 = scales.y.data_to_axis(tick_lo);
+                let y1 = scales.y.data_to_axis(tick_hi);
+                let x = scales.x.data_to_axis(stats.median);
+                chart
+                    .draw_series(std::iter::once(PathElement::new(
+                        vec![(x, y0), (x, y1)],
+                        line_style,
+                    )))
+                    .map_err(|_| "failed to draw violin cmedians")?;
+            }
+        }
+    }
+
     Ok(())
 }
 

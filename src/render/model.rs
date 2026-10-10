@@ -3,6 +3,7 @@ use crate::colormap::{Colormap, Normalize};
 use crate::panel::{GridStyle, TickFormat, TickLabelRotation, TickLabels};
 use crate::series::{
     ArrowStyle, HorizontalAlignment, LineDash, Marker, StepWhere, TextStyle, VerticalAlignment,
+    ViolinStyle,
 };
 
 /// Layout insets applied during rendering (constrained layout).
@@ -205,12 +206,19 @@ pub struct AxVSpanSeries {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub struct ViolinSeries {
+    pub groups: Vec<Vec<f64>>,
+    pub style: ViolinStyle,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub enum CompiledSeries {
     Line(LineSeries),
     Scatter(ScatterSeries),
     ErrorBar(ErrorBarSeries),
     Step(StepSeries),
     Boxplot(BoxplotSeries),
+    Violin(ViolinSeries),
     Bar(BarSeries),
     BarH(BarHSeries),
     Histogram(HistSeries),

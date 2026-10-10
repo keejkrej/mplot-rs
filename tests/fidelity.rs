@@ -3,7 +3,7 @@
 use mplot::prelude::{
     AxesStyle, BarHStyle, BarStyle, BoxplotStyle, Color, Colormap, ContourStyle, ErrorBarStyle,
     Figure, FillBetweenStyle, GridPos, HistStyle, ImageStyle, LineStyle, SaveOptions, Scale,
-    ScatterStyle, Size, StepStyle, StepWhere,
+    ScatterStyle, Size, StepStyle, StepWhere, ViolinStyle,
 };
 use mplot::Result;
 use std::path::{Path, PathBuf};
@@ -424,6 +424,25 @@ fn render_errorbar(path: &Path) -> Result<()> {
         .save(path, fidelity_save_options())
 }
 
+fn render_violinplot(path: &Path) -> Result<()> {
+    let data = vec![
+        vec![1.0, 2.0, 2.5, 3.0, 3.5, 4.0, 5.0],
+        vec![2.0, 3.0, 3.5, 4.0, 4.5, 5.5, 6.0],
+    ];
+
+    Figure::builder()
+        .panel(GridPos::new(1, 1, 1), |p| {
+            p.violinplot(&data, ViolinStyle::new()).axes(
+                AxesStyle::new()
+                    .title("Violin plot")
+                    .x_label("group")
+                    .y_label("value"),
+            );
+        })
+        .build()?
+        .save(path, fidelity_save_options())
+}
+
 fn compare_pngs(
     actual: &Path,
     golden: &Path,
@@ -564,4 +583,9 @@ fn fidelity_barh() {
 #[test]
 fn fidelity_errorbar() {
     fidelity_case("errorbar.png", render_errorbar, 35.0).unwrap();
+}
+
+#[test]
+fn fidelity_violinplot() {
+    fidelity_case("violinplot.png", render_violinplot, 35.0).unwrap();
 }
