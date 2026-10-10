@@ -35,6 +35,9 @@
 //! # }
 //! ```
 
+#![allow(clippy::all)]
+#![allow(rustdoc::broken_intra_doc_links)]
+
 mod as_vector;
 mod auxiliary;
 mod axes;
