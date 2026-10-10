@@ -33,8 +33,15 @@ pub enum Marker {
     Plus,
     TriangleUp,
     TriangleDown,
+    TriangleLeft,
+    TriangleRight,
     Diamond,
     Star,
+    Pentagon,
+    Hexagon,
+    Point,
+    VLine,
+    HLine,
 }
 
 /// Horizontal text alignment (matplotlib `ha`).
@@ -378,6 +385,13 @@ pub struct BarStyle {
     color: Color,
     width: f64,
     baseline: f64,
+    bottom: Option<Vec<f64>>,
+    yerr: Option<Vec<f64>>,
+    yerr_lower: Option<Vec<f64>>,
+    capsize: f64,
+    edge_color: Option<Color>,
+    edge_width: f64,
+    alpha: f64,
     label: Option<String>,
 }
 
@@ -387,6 +401,13 @@ impl Default for BarStyle {
             color: Color::TABLEAU[0],
             width: 0.8,
             baseline: 0.0,
+            bottom: None,
+            yerr: None,
+            yerr_lower: None,
+            capsize: 3.0,
+            edge_color: None,
+            edge_width: 1.0,
+            alpha: 1.0,
             label: None,
         }
     }
@@ -412,6 +433,54 @@ impl BarStyle {
         self
     }
 
+    pub fn bottom<'a, T, U>(mut self, bottom: &'a T) -> Self
+    where
+        T: AsVector<'a, U>,
+        U: 'a + Num + NumCast + Copy,
+    {
+        self.bottom = Some(vector_to_f64(bottom));
+        self
+    }
+
+    pub fn yerr<'a, T, U>(mut self, yerr: &'a T) -> Self
+    where
+        T: AsVector<'a, U>,
+        U: 'a + Num + NumCast + Copy,
+    {
+        self.yerr = Some(vector_to_f64(yerr));
+        self
+    }
+
+    pub fn yerr_asymmetric<'a, T, U>(mut self, lower: &'a T, upper: &'a T) -> Self
+    where
+        T: AsVector<'a, U>,
+        U: 'a + Num + NumCast + Copy,
+    {
+        self.yerr_lower = Some(vector_to_f64(lower));
+        self.yerr = Some(vector_to_f64(upper));
+        self
+    }
+
+    pub fn capsize(mut self, capsize: f64) -> Self {
+        self.capsize = capsize.max(0.0);
+        self
+    }
+
+    pub fn edge_color(mut self, color: Color) -> Self {
+        self.edge_color = Some(color);
+        self
+    }
+
+    pub fn edge_width(mut self, width: f64) -> Self {
+        self.edge_width = width.max(0.0);
+        self
+    }
+
+    pub fn alpha(mut self, alpha: f64) -> Self {
+        self.alpha = alpha.clamp(0.0, 1.0);
+        self
+    }
+
     pub fn label(mut self, label: impl Into<String>) -> Self {
         self.label = Some(label.into());
         self
@@ -427,6 +496,34 @@ impl BarStyle {
 
     pub(crate) fn baseline_value(&self) -> f64 {
         self.baseline
+    }
+
+    pub(crate) fn bottom_value(&self) -> Option<&[f64]> {
+        self.bottom.as_deref()
+    }
+
+    pub(crate) fn yerr_value(&self) -> Option<&[f64]> {
+        self.yerr.as_deref()
+    }
+
+    pub(crate) fn yerr_lower_value(&self) -> Option<&[f64]> {
+        self.yerr_lower.as_deref()
+    }
+
+    pub(crate) fn capsize_value(&self) -> f64 {
+        self.capsize
+    }
+
+    pub(crate) fn edge_color_value(&self) -> Option<Color> {
+        self.edge_color
+    }
+
+    pub(crate) fn edge_width_value(&self) -> f64 {
+        self.edge_width
+    }
+
+    pub(crate) fn alpha_value(&self) -> f64 {
+        self.alpha
     }
 
     pub(crate) fn label_value(&self) -> Option<&str> {
@@ -682,6 +779,192 @@ impl ContourStyle {
     }
 }
 
+/// Styling for bounding box around text (matplotlib `bbox=dict(...)`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct BboxStyle {
+    face_color: Option<Color>,
+    edge_color: Option<Color>,
+    edge_width: f64,
+    pad: f64,
+    alpha: f64,
+}
+
+impl Default for BboxStyle {
+    fn default() -> Self {
+        BboxStyle {
+            face_color: Some(Color::rgb(255, 255, 255)),
+            edge_color: Some(Color::rgb(0, 0, 0)),
+            edge_width: 1.0,
+            pad: 3.0,
+            alpha: 1.0,
+        }
+    }
+}
+
+impl BboxStyle {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn face_color(mut self, color: Color) -> Self {
+        self.face_color = Some(color);
+        self
+    }
+
+    pub fn edge_color(mut self, color: Color) -> Self {
+        self.edge_color = Some(color);
+        self
+    }
+
+    pub fn edge_width(mut self, width: f64) -> Self {
+        self.edge_width = width;
+        self
+    }
+
+    pub fn pad(mut self, pad: f64) -> Self {
+        self.pad = pad;
+        self
+    }
+
+    pub fn alpha(mut self, alpha: f64) -> Self {
+        self.alpha = alpha.clamp(0.0, 1.0);
+        self
+    }
+
+    pub fn face_color_value(&self) -> Option<Color> {
+        self.face_color
+    }
+
+    pub fn edge_color_value(&self) -> Option<Color> {
+        self.edge_color
+    }
+
+    pub fn edge_width_value(&self) -> f64 {
+        self.edge_width
+    }
+
+    pub fn pad_value(&self) -> f64 {
+        self.pad
+    }
+
+    pub fn alpha_value(&self) -> f64 {
+        self.alpha
+    }
+}
+
+/// Orientation for event plots (matplotlib `ax.eventplot`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EventplotOrientation {
+    Horizontal,
+    Vertical,
+}
+
+/// Styling for event plots (matplotlib `ax.eventplot`).
+#[derive(Clone, Debug, PartialEq)]
+pub struct EventplotStyle {
+    orientation: EventplotOrientation,
+    lineoffset: f64,
+    linelength: f64,
+    color: Color,
+    linewidth: f64,
+    dash: LineDash,
+    alpha: f64,
+    label: String,
+}
+
+impl Default for EventplotStyle {
+    fn default() -> Self {
+        EventplotStyle {
+            orientation: EventplotOrientation::Horizontal,
+            lineoffset: 1.0,
+            linelength: 1.0,
+            color: Color::TABLEAU[0],
+            linewidth: 1.5,
+            dash: LineDash::Solid,
+            alpha: 1.0,
+            label: String::new(),
+        }
+    }
+}
+
+impl EventplotStyle {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn orientation(mut self, orientation: EventplotOrientation) -> Self {
+        self.orientation = orientation;
+        self
+    }
+
+    pub fn lineoffset(mut self, offset: f64) -> Self {
+        self.lineoffset = offset;
+        self
+    }
+
+    pub fn linelength(mut self, length: f64) -> Self {
+        self.linelength = length;
+        self
+    }
+
+    pub fn color(mut self, color: Color) -> Self {
+        self.color = color;
+        self
+    }
+
+    pub fn linewidth(mut self, width: f64) -> Self {
+        self.linewidth = width;
+        self
+    }
+
+    pub fn dash(mut self, dash: LineDash) -> Self {
+        self.dash = dash;
+        self
+    }
+
+    pub fn alpha(mut self, alpha: f64) -> Self {
+        self.alpha = alpha.clamp(0.0, 1.0);
+        self
+    }
+
+    pub fn label(mut self, label: impl Into<String>) -> Self {
+        self.label = label.into();
+        self
+    }
+
+    pub fn orientation_value(&self) -> EventplotOrientation {
+        self.orientation
+    }
+
+    pub fn lineoffset_value(&self) -> f64 {
+        self.lineoffset
+    }
+
+    pub fn linelength_value(&self) -> f64 {
+        self.linelength
+    }
+
+    pub fn color_value(&self) -> Color {
+        self.color
+    }
+
+    pub fn linewidth_value(&self) -> f64 {
+        self.linewidth
+    }
+
+    pub fn dash_value(&self) -> LineDash {
+        self.dash
+    }
+
+    pub fn alpha_value(&self) -> f64 {
+        self.alpha
+    }
+
+    pub fn label_value(&self) -> &str {
+        &self.label
+    }
+}
+
 /// Styling for text annotations.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct TextStyle {
@@ -690,6 +973,7 @@ pub struct TextStyle {
     ha: HorizontalAlignment,
     va: VerticalAlignment,
     rotation: f64,
+    bbox: Option<BboxStyle>,
 }
 
 impl Default for TextStyle {
@@ -700,6 +984,7 @@ impl Default for TextStyle {
             ha: HorizontalAlignment::Left,
             va: VerticalAlignment::Baseline,
             rotation: 0.0,
+            bbox: None,
         }
     }
 }
@@ -734,6 +1019,11 @@ impl TextStyle {
         self
     }
 
+    pub fn bbox(mut self, bbox: BboxStyle) -> Self {
+        self.bbox = Some(bbox);
+        self
+    }
+
     pub(crate) fn color_value(&self) -> Color {
         self.color
     }
@@ -752,6 +1042,10 @@ impl TextStyle {
 
     pub(crate) fn rotation_value(&self) -> f64 {
         self.rotation
+    }
+
+    pub(crate) fn bbox_value(&self) -> Option<BboxStyle> {
+        self.bbox
     }
 }
 
@@ -870,6 +1164,11 @@ impl AnnotationStyle {
         self
     }
 
+    pub fn bbox(mut self, bbox: BboxStyle) -> Self {
+        self.text_style = self.text_style.bbox(bbox);
+        self
+    }
+
     pub(crate) fn text_style_value(&self) -> TextStyle {
         self.text_style
     }
@@ -884,6 +1183,9 @@ impl AnnotationStyle {
 pub struct ScatterStyle {
     color: Color,
     size: f64,
+    sizes: Option<Vec<f64>>,
+    values: Option<Vec<f64>>,
+    colormap: Option<Colormap>,
     marker: Marker,
     alpha: f64,
     edge_color: Option<Color>,
@@ -896,6 +1198,9 @@ impl Default for ScatterStyle {
         ScatterStyle {
             color: Color::TABLEAU[0],
             size: 36.0,
+            sizes: None,
+            values: None,
+            colormap: None,
             marker: Marker::Circle,
             alpha: 1.0,
             edge_color: None,
@@ -917,6 +1222,37 @@ impl ScatterStyle {
 
     pub fn size(mut self, size: f64) -> Self {
         self.size = size.max(0.0);
+        self
+    }
+
+    pub fn sizes<'a, T, U>(mut self, sizes: &'a T) -> Self
+    where
+        T: AsVector<'a, U>,
+        U: 'a + Num + NumCast + Copy,
+    {
+        self.sizes = Some(vector_to_f64(sizes));
+        self
+    }
+
+    pub fn values<'a, T, U>(mut self, values: &'a T) -> Self
+    where
+        T: AsVector<'a, U>,
+        U: 'a + Num + NumCast + Copy,
+    {
+        self.values = Some(vector_to_f64(values));
+        self
+    }
+
+    pub fn c<'a, T, U>(self, values: &'a T) -> Self
+    where
+        T: AsVector<'a, U>,
+        U: 'a + Num + NumCast + Copy,
+    {
+        self.values(values)
+    }
+
+    pub fn colormap(mut self, colormap: Colormap) -> Self {
+        self.colormap = Some(colormap);
         self
     }
 
@@ -951,6 +1287,18 @@ impl ScatterStyle {
 
     pub(crate) fn size_value(&self) -> f64 {
         self.size
+    }
+
+    pub(crate) fn sizes_value(&self) -> Option<&[f64]> {
+        self.sizes.as_deref()
+    }
+
+    pub(crate) fn values_value(&self) -> Option<&[f64]> {
+        self.values.as_deref()
+    }
+
+    pub(crate) fn colormap_value(&self) -> Option<Colormap> {
+        self.colormap
     }
 
     pub(crate) fn marker_value(&self) -> Marker {
@@ -1271,6 +1619,13 @@ pub struct BarHStyle {
     color: Color,
     height: f64,
     baseline: f64,
+    left: Option<Vec<f64>>,
+    xerr: Option<Vec<f64>>,
+    xerr_lower: Option<Vec<f64>>,
+    capsize: f64,
+    edge_color: Option<Color>,
+    edge_width: f64,
+    alpha: f64,
     label: Option<String>,
 }
 
@@ -1280,6 +1635,13 @@ impl Default for BarHStyle {
             color: Color::TABLEAU[0],
             height: 0.8,
             baseline: 0.0,
+            left: None,
+            xerr: None,
+            xerr_lower: None,
+            capsize: 3.0,
+            edge_color: None,
+            edge_width: 1.0,
+            alpha: 1.0,
             label: None,
         }
     }
@@ -1305,6 +1667,54 @@ impl BarHStyle {
         self
     }
 
+    pub fn left<'a, T, U>(mut self, left: &'a T) -> Self
+    where
+        T: AsVector<'a, U>,
+        U: 'a + Num + NumCast + Copy,
+    {
+        self.left = Some(vector_to_f64(left));
+        self
+    }
+
+    pub fn xerr<'a, T, U>(mut self, xerr: &'a T) -> Self
+    where
+        T: AsVector<'a, U>,
+        U: 'a + Num + NumCast + Copy,
+    {
+        self.xerr = Some(vector_to_f64(xerr));
+        self
+    }
+
+    pub fn xerr_asymmetric<'a, T, U>(mut self, lower: &'a T, upper: &'a T) -> Self
+    where
+        T: AsVector<'a, U>,
+        U: 'a + Num + NumCast + Copy,
+    {
+        self.xerr_lower = Some(vector_to_f64(lower));
+        self.xerr = Some(vector_to_f64(upper));
+        self
+    }
+
+    pub fn capsize(mut self, capsize: f64) -> Self {
+        self.capsize = capsize.max(0.0);
+        self
+    }
+
+    pub fn edge_color(mut self, color: Color) -> Self {
+        self.edge_color = Some(color);
+        self
+    }
+
+    pub fn edge_width(mut self, width: f64) -> Self {
+        self.edge_width = width.max(0.0);
+        self
+    }
+
+    pub fn alpha(mut self, alpha: f64) -> Self {
+        self.alpha = alpha.clamp(0.0, 1.0);
+        self
+    }
+
     pub fn label(mut self, label: impl Into<String>) -> Self {
         self.label = Some(label.into());
         self
@@ -1322,8 +1732,637 @@ impl BarHStyle {
         self.baseline
     }
 
+    pub(crate) fn left_value(&self) -> Option<&[f64]> {
+        self.left.as_deref()
+    }
+
+    pub(crate) fn xerr_value(&self) -> Option<&[f64]> {
+        self.xerr.as_deref()
+    }
+
+    pub(crate) fn xerr_lower_value(&self) -> Option<&[f64]> {
+        self.xerr_lower.as_deref()
+    }
+
+    pub(crate) fn capsize_value(&self) -> f64 {
+        self.capsize
+    }
+
+    pub(crate) fn edge_color_value(&self) -> Option<Color> {
+        self.edge_color
+    }
+
+    pub(crate) fn edge_width_value(&self) -> f64 {
+        self.edge_width
+    }
+
+    pub(crate) fn alpha_value(&self) -> f64 {
+        self.alpha
+    }
+
     pub(crate) fn label_value(&self) -> Option<&str> {
         self.label.as_deref()
+    }
+}
+
+/// Styling for stem plots (matplotlib `ax.stem(...)`).
+#[derive(Clone, Debug, PartialEq)]
+pub struct StemStyle {
+    bottom: f64,
+    color: Color,
+    line_width: f64,
+    line_dash: LineDash,
+    marker: Marker,
+    marker_size: f64,
+    marker_color: Option<Color>,
+    base_color: Option<Color>,
+    base_width: f64,
+    horizontal: bool,
+    label: Option<String>,
+}
+
+impl Default for StemStyle {
+    fn default() -> Self {
+        StemStyle {
+            bottom: 0.0,
+            color: Color::TABLEAU[0],
+            line_width: DEFAULT_LINE_WIDTH,
+            line_dash: LineDash::Solid,
+            marker: Marker::Circle,
+            marker_size: 4.0,
+            marker_color: None,
+            base_color: None,
+            base_width: 1.0,
+            horizontal: false,
+            label: None,
+        }
+    }
+}
+
+impl StemStyle {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn bottom(mut self, bottom: f64) -> Self {
+        self.bottom = bottom;
+        self
+    }
+
+    pub fn color(mut self, color: Color) -> Self {
+        self.color = color;
+        self
+    }
+
+    pub fn line_width(mut self, width: f64) -> Self {
+        self.line_width = width.max(0.0);
+        self
+    }
+
+    pub fn line_dash(mut self, dash: LineDash) -> Self {
+        self.line_dash = dash;
+        self
+    }
+
+    pub fn marker(mut self, marker: Marker) -> Self {
+        self.marker = marker;
+        self
+    }
+
+    pub fn marker_size(mut self, size: f64) -> Self {
+        self.marker_size = size.max(0.0);
+        self
+    }
+
+    pub fn marker_color(mut self, color: Color) -> Self {
+        self.marker_color = Some(color);
+        self
+    }
+
+    pub fn base_color(mut self, color: Color) -> Self {
+        self.base_color = Some(color);
+        self
+    }
+
+    pub fn base_width(mut self, width: f64) -> Self {
+        self.base_width = width.max(0.0);
+        self
+    }
+
+    pub fn horizontal(mut self, horizontal: bool) -> Self {
+        self.horizontal = horizontal;
+        self
+    }
+
+    pub fn label(mut self, label: impl Into<String>) -> Self {
+        self.label = Some(label.into());
+        self
+    }
+
+    pub(crate) fn bottom_value(&self) -> f64 {
+        self.bottom
+    }
+
+    pub(crate) fn color_value(&self) -> Color {
+        self.color
+    }
+
+    pub(crate) fn line_width_value(&self) -> f64 {
+        self.line_width
+    }
+
+    pub(crate) fn line_dash_value(&self) -> LineDash {
+        self.line_dash
+    }
+
+    pub(crate) fn marker_value(&self) -> Marker {
+        self.marker
+    }
+
+    pub(crate) fn marker_size_value(&self) -> f64 {
+        self.marker_size
+    }
+
+    pub(crate) fn marker_color_value(&self) -> Option<Color> {
+        self.marker_color
+    }
+
+    pub(crate) fn base_color_value(&self) -> Option<Color> {
+        self.base_color
+    }
+
+    pub(crate) fn base_width_value(&self) -> f64 {
+        self.base_width
+    }
+
+    pub(crate) fn horizontal_value(&self) -> bool {
+        self.horizontal
+    }
+
+    pub(crate) fn label_value(&self) -> Option<&str> {
+        self.label.as_deref()
+    }
+}
+
+/// Styling for stacked area plots (matplotlib `ax.stackplot(...)`).
+#[derive(Clone, Debug, PartialEq)]
+pub struct StackplotStyle {
+    colors: Vec<Color>,
+    labels: Vec<String>,
+    alpha: f64,
+    baseline: f64,
+}
+
+impl Default for StackplotStyle {
+    fn default() -> Self {
+        StackplotStyle {
+            colors: Vec::new(),
+            labels: Vec::new(),
+            alpha: 1.0,
+            baseline: 0.0,
+        }
+    }
+}
+
+impl StackplotStyle {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn colors(mut self, colors: Vec<Color>) -> Self {
+        self.colors = colors;
+        self
+    }
+
+    pub fn labels<S: Into<String>>(mut self, labels: impl IntoIterator<Item = S>) -> Self {
+        self.labels = labels.into_iter().map(Into::into).collect();
+        self
+    }
+
+    pub fn alpha(mut self, alpha: f64) -> Self {
+        self.alpha = alpha.clamp(0.0, 1.0);
+        self
+    }
+
+    pub fn baseline(mut self, baseline: f64) -> Self {
+        self.baseline = baseline;
+        self
+    }
+
+    pub(crate) fn colors_value(&self) -> &[Color] {
+        &self.colors
+    }
+
+    pub(crate) fn labels_value(&self) -> &[String] {
+        &self.labels
+    }
+
+    pub(crate) fn alpha_value(&self) -> f64 {
+        self.alpha
+    }
+
+    pub(crate) fn baseline_value(&self) -> f64 {
+        self.baseline
+    }
+}
+
+/// Styling for stairs / step histogram plots (matplotlib `ax.stairs(...)`).
+#[derive(Clone, Debug, PartialEq)]
+pub struct StairsStyle {
+    color: Color,
+    width: f64,
+    dash: LineDash,
+    fill: bool,
+    fill_color: Option<Color>,
+    fill_alpha: f64,
+    baseline: f64,
+    horizontal: bool,
+    label: Option<String>,
+}
+
+impl Default for StairsStyle {
+    fn default() -> Self {
+        StairsStyle {
+            color: Color::TABLEAU[0],
+            width: DEFAULT_LINE_WIDTH,
+            dash: LineDash::Solid,
+            fill: false,
+            fill_color: None,
+            fill_alpha: 0.3,
+            baseline: 0.0,
+            horizontal: false,
+            label: None,
+        }
+    }
+}
+
+impl StairsStyle {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn color(mut self, color: Color) -> Self {
+        self.color = color;
+        self
+    }
+
+    pub fn width(mut self, width: f64) -> Self {
+        self.width = width.max(0.0);
+        self
+    }
+
+    pub fn dash(mut self, dash: LineDash) -> Self {
+        self.dash = dash;
+        self
+    }
+
+    pub fn fill(mut self, fill: bool) -> Self {
+        self.fill = fill;
+        self
+    }
+
+    pub fn fill_color(mut self, color: Color) -> Self {
+        self.fill_color = Some(color);
+        self
+    }
+
+    pub fn fill_alpha(mut self, alpha: f64) -> Self {
+        self.fill_alpha = alpha.clamp(0.0, 1.0);
+        self
+    }
+
+    pub fn baseline(mut self, baseline: f64) -> Self {
+        self.baseline = baseline;
+        self
+    }
+
+    pub fn horizontal(mut self, horizontal: bool) -> Self {
+        self.horizontal = horizontal;
+        self
+    }
+
+    pub fn label(mut self, label: impl Into<String>) -> Self {
+        self.label = Some(label.into());
+        self
+    }
+
+    pub(crate) fn color_value(&self) -> Color {
+        self.color
+    }
+
+    pub(crate) fn width_value(&self) -> f64 {
+        self.width
+    }
+
+    pub(crate) fn dash_value(&self) -> LineDash {
+        self.dash
+    }
+
+    pub(crate) fn fill_value(&self) -> bool {
+        self.fill
+    }
+
+    pub(crate) fn fill_color_value(&self) -> Option<Color> {
+        self.fill_color
+    }
+
+    pub(crate) fn fill_alpha_value(&self) -> f64 {
+        self.fill_alpha
+    }
+
+    pub(crate) fn baseline_value(&self) -> f64 {
+        self.baseline
+    }
+
+    pub(crate) fn horizontal_value(&self) -> bool {
+        self.horizontal
+    }
+
+    pub(crate) fn label_value(&self) -> Option<&str> {
+        self.label.as_deref()
+    }
+}
+
+/// Styling for quiver / 2D vector field plots (matplotlib `ax.quiver(...)`).
+#[derive(Clone, Debug, PartialEq)]
+pub struct QuiverStyle {
+    color: Color,
+    width: f64,
+    scale: f64,
+    arrow_size: f64,
+    alpha: f64,
+    label: Option<String>,
+}
+
+impl Default for QuiverStyle {
+    fn default() -> Self {
+        QuiverStyle {
+            color: Color::TABLEAU[0],
+            width: DEFAULT_LINE_WIDTH,
+            scale: 1.0,
+            arrow_size: 4.0,
+            alpha: 1.0,
+            label: None,
+        }
+    }
+}
+
+impl QuiverStyle {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn color(mut self, color: Color) -> Self {
+        self.color = color;
+        self
+    }
+
+    pub fn width(mut self, width: f64) -> Self {
+        self.width = width.max(0.0);
+        self
+    }
+
+    pub fn scale(mut self, scale: f64) -> Self {
+        self.scale = scale;
+        self
+    }
+
+    pub fn arrow_size(mut self, size: f64) -> Self {
+        self.arrow_size = size.max(0.0);
+        self
+    }
+
+    pub fn alpha(mut self, alpha: f64) -> Self {
+        self.alpha = alpha.clamp(0.0, 1.0);
+        self
+    }
+
+    pub fn label(mut self, label: impl Into<String>) -> Self {
+        self.label = Some(label.into());
+        self
+    }
+
+    pub(crate) fn color_value(&self) -> Color {
+        self.color
+    }
+
+    pub(crate) fn width_value(&self) -> f64 {
+        self.width
+    }
+
+    pub(crate) fn scale_value(&self) -> f64 {
+        self.scale
+    }
+
+    pub(crate) fn arrow_size_value(&self) -> f64 {
+        self.arrow_size
+    }
+
+    pub(crate) fn alpha_value(&self) -> f64 {
+        self.alpha
+    }
+
+    pub(crate) fn label_value(&self) -> Option<&str> {
+        self.label.as_deref()
+    }
+}
+
+/// Styling for pie charts (matplotlib `ax.pie(...)`).
+#[derive(Clone, Debug, PartialEq)]
+pub struct PieStyle {
+    labels: Vec<String>,
+    colors: Vec<Color>,
+    explode: Vec<f64>,
+    autopct: Option<String>,
+    start_angle: f64,
+    edge_color: Option<Color>,
+    edge_width: f64,
+    radius: f64,
+}
+
+impl Default for PieStyle {
+    fn default() -> Self {
+        PieStyle {
+            labels: Vec::new(),
+            colors: Vec::new(),
+            explode: Vec::new(),
+            autopct: None,
+            start_angle: 0.0,
+            edge_color: Some(Color::rgb(255, 255, 255)),
+            edge_width: 1.0,
+            radius: 1.0,
+        }
+    }
+}
+
+impl PieStyle {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn labels<S: AsRef<str>>(mut self, labels: &[S]) -> Self {
+        self.labels = labels.iter().map(|s| s.as_ref().to_string()).collect();
+        self
+    }
+
+    pub fn colors(mut self, colors: Vec<Color>) -> Self {
+        self.colors = colors;
+        self
+    }
+
+    pub fn explode<'a, T, U>(mut self, explode: &'a T) -> Self
+    where
+        T: AsVector<'a, U>,
+        U: 'a + Num + NumCast + Copy,
+    {
+        self.explode = vector_to_f64(explode);
+        self
+    }
+
+    pub fn autopct(mut self, autopct: impl Into<String>) -> Self {
+        self.autopct = Some(autopct.into());
+        self
+    }
+
+    pub fn start_angle(mut self, angle: f64) -> Self {
+        self.start_angle = angle;
+        self
+    }
+
+    pub fn edge_color(mut self, color: Color) -> Self {
+        self.edge_color = Some(color);
+        self
+    }
+
+    pub fn edge_width(mut self, width: f64) -> Self {
+        self.edge_width = width.max(0.0);
+        self
+    }
+
+    pub fn radius(mut self, radius: f64) -> Self {
+        self.radius = radius.max(0.0);
+        self
+    }
+
+    pub(crate) fn labels_value(&self) -> &[String] {
+        &self.labels
+    }
+
+    pub(crate) fn colors_value(&self) -> &[Color] {
+        &self.colors
+    }
+
+    pub(crate) fn explode_value(&self) -> &[f64] {
+        &self.explode
+    }
+
+    pub(crate) fn autopct_value(&self) -> Option<&str> {
+        self.autopct.as_deref()
+    }
+
+    pub(crate) fn start_angle_value(&self) -> f64 {
+        self.start_angle
+    }
+
+    pub(crate) fn edge_color_value(&self) -> Option<Color> {
+        self.edge_color
+    }
+
+    pub(crate) fn edge_width_value(&self) -> f64 {
+        self.edge_width
+    }
+
+    pub(crate) fn radius_value(&self) -> f64 {
+        self.radius
+    }
+}
+
+/// Styling for 2D histograms (matplotlib `ax.hist2d(...)`).
+#[derive(Clone, Debug, PartialEq)]
+pub struct Hist2DStyle {
+    bins: (usize, usize),
+    range_x: Option<(f64, f64)>,
+    range_y: Option<(f64, f64)>,
+    colormap: Colormap,
+    show_colorbar: bool,
+    density: bool,
+}
+
+impl Default for Hist2DStyle {
+    fn default() -> Self {
+        Hist2DStyle {
+            bins: (10, 10),
+            range_x: None,
+            range_y: None,
+            colormap: Colormap::Viridis,
+            show_colorbar: false,
+            density: false,
+        }
+    }
+}
+
+impl Hist2DStyle {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn bins(mut self, nx: usize, ny: usize) -> Self {
+        self.bins = (nx.max(1), ny.max(1));
+        self
+    }
+
+    pub fn bin_count(mut self, count: usize) -> Self {
+        self.bins = (count.max(1), count.max(1));
+        self
+    }
+
+    pub fn range_x(mut self, min: f64, max: f64) -> Self {
+        self.range_x = Some((min, max));
+        self
+    }
+
+    pub fn range_y(mut self, min: f64, max: f64) -> Self {
+        self.range_y = Some((min, max));
+        self
+    }
+
+    pub fn colormap(mut self, colormap: Colormap) -> Self {
+        self.colormap = colormap;
+        self
+    }
+
+    pub fn show_colorbar(mut self, show: bool) -> Self {
+        self.show_colorbar = show;
+        self
+    }
+
+    pub fn density(mut self, density: bool) -> Self {
+        self.density = density;
+        self
+    }
+
+    pub(crate) fn bins_value(&self) -> (usize, usize) {
+        self.bins
+    }
+
+    pub(crate) fn range_x_value(&self) -> Option<(f64, f64)> {
+        self.range_x
+    }
+
+    pub(crate) fn range_y_value(&self) -> Option<(f64, f64)> {
+        self.range_y
+    }
+
+    pub(crate) fn colormap_value(&self) -> Colormap {
+        self.colormap
+    }
+
+    pub(crate) fn show_colorbar_value(&self) -> bool {
+        self.show_colorbar
+    }
+
+    pub(crate) fn density_value(&self) -> bool {
+        self.density
     }
 }
 
@@ -1374,6 +2413,12 @@ pub enum Series {
         y2: Vec<f64>,
         style: FillBetweenStyle,
     },
+    FillBetweenX {
+        y: Vec<f64>,
+        x1: Vec<f64>,
+        x2: Vec<f64>,
+        style: FillBetweenStyle,
+    },
     Image {
         data: Vec<f64>,
         width: usize,
@@ -1402,6 +2447,37 @@ pub enum Series {
         groups: Vec<Vec<f64>>,
         style: ViolinStyle,
     },
+    Stem {
+        x: Vec<f64>,
+        y: Vec<f64>,
+        style: StemStyle,
+    },
+    Stackplot {
+        x: Vec<f64>,
+        ys: Vec<Vec<f64>>,
+        style: StackplotStyle,
+    },
+    Stairs {
+        values: Vec<f64>,
+        edges: Option<Vec<f64>>,
+        style: StairsStyle,
+    },
+    Quiver {
+        x: Vec<f64>,
+        y: Vec<f64>,
+        u: Vec<f64>,
+        v: Vec<f64>,
+        style: QuiverStyle,
+    },
+    Pie {
+        values: Vec<f64>,
+        style: PieStyle,
+    },
+    Hist2D {
+        x: Vec<f64>,
+        y: Vec<f64>,
+        style: Hist2DStyle,
+    },
     AxHLine {
         y: f64,
         style: LineStyle,
@@ -1419,6 +2495,28 @@ pub enum Series {
         xmin: f64,
         xmax: f64,
         style: FillBetweenStyle,
+    },
+    AxLine {
+        p1: (f64, f64),
+        p2: Option<(f64, f64)>,
+        slope: Option<f64>,
+        style: LineStyle,
+    },
+    HLines {
+        y: Vec<f64>,
+        xmin: Vec<f64>,
+        xmax: Vec<f64>,
+        style: LineStyle,
+    },
+    VLines {
+        x: Vec<f64>,
+        ymin: Vec<f64>,
+        ymax: Vec<f64>,
+        style: LineStyle,
+    },
+    EventPlot {
+        positions: Vec<f64>,
+        style: EventplotStyle,
     },
 }
 
@@ -1571,11 +2669,198 @@ impl Series {
         Series::AxVLine { x, style }
     }
 
+    pub fn fill_betweenx<'a, T, U>(y: &'a T, x1: &'a T, x2: &'a T, style: FillBetweenStyle) -> Self
+    where
+        T: AsVector<'a, U>,
+        U: 'a + Num + NumCast + Copy,
+    {
+        Series::FillBetweenX {
+            y: vector_to_f64(y),
+            x1: vector_to_f64(x1),
+            x2: vector_to_f64(x2),
+            style,
+        }
+    }
+
+    pub fn stem<'a, Tx, Ty, Ux, Uy>(x: &'a Tx, y: &'a Ty, style: StemStyle) -> Self
+    where
+        Tx: AsVector<'a, Ux>,
+        Ty: AsVector<'a, Uy>,
+        Ux: 'a + Num + NumCast + Copy,
+        Uy: 'a + Num + NumCast + Copy,
+    {
+        Series::Stem {
+            x: vector_to_f64(x),
+            y: vector_to_f64(y),
+            style,
+        }
+    }
+
+    pub fn stackplot<'a, T, U>(x: &'a T, ys: &[&'a T], style: StackplotStyle) -> Self
+    where
+        T: AsVector<'a, U>,
+        U: 'a + Num + NumCast + Copy,
+    {
+        Series::Stackplot {
+            x: vector_to_f64(x),
+            ys: ys.iter().map(|y| vector_to_f64(*y)).collect(),
+            style,
+        }
+    }
+
+    pub fn stairs<'a, Tv, Te, Uv, Ue>(
+        values: &'a Tv,
+        edges: Option<&'a Te>,
+        style: StairsStyle,
+    ) -> Self
+    where
+        Tv: AsVector<'a, Uv>,
+        Te: AsVector<'a, Ue>,
+        Uv: 'a + Num + NumCast + Copy,
+        Ue: 'a + Num + NumCast + Copy,
+    {
+        Series::Stairs {
+            values: vector_to_f64(values),
+            edges: edges.map(vector_to_f64),
+            style,
+        }
+    }
+
+    pub fn quiver<'a, T, U>(x: &'a T, y: &'a T, u: &'a T, v: &'a T, style: QuiverStyle) -> Self
+    where
+        T: AsVector<'a, U>,
+        U: 'a + Num + NumCast + Copy,
+    {
+        Series::Quiver {
+            x: vector_to_f64(x),
+            y: vector_to_f64(y),
+            u: vector_to_f64(u),
+            v: vector_to_f64(v),
+            style,
+        }
+    }
+
+    pub fn pie<'a, T, U>(values: &'a T, style: PieStyle) -> Self
+    where
+        T: AsVector<'a, U>,
+        U: 'a + Num + NumCast + Copy,
+    {
+        Series::Pie {
+            values: vector_to_f64(values),
+            style,
+        }
+    }
+
+    pub fn hist2d<'a, Tx, Ty, Ux, Uy>(x: &'a Tx, y: &'a Ty, style: Hist2DStyle) -> Self
+    where
+        Tx: AsVector<'a, Ux>,
+        Ty: AsVector<'a, Uy>,
+        Ux: 'a + Num + NumCast + Copy,
+        Uy: 'a + Num + NumCast + Copy,
+    {
+        Series::Hist2D {
+            x: vector_to_f64(x),
+            y: vector_to_f64(y),
+            style,
+        }
+    }
+
     pub fn axhspan(ymin: f64, ymax: f64, style: FillBetweenStyle) -> Self {
         Series::AxHSpan { ymin, ymax, style }
     }
 
     pub fn axvspan(xmin: f64, xmax: f64, style: FillBetweenStyle) -> Self {
         Series::AxVSpan { xmin, xmax, style }
+    }
+
+    pub fn axline(p1: (f64, f64), p2: (f64, f64), style: LineStyle) -> Self {
+        Series::AxLine {
+            p1,
+            p2: Some(p2),
+            slope: None,
+            style,
+        }
+    }
+
+    pub fn axline_slope(p1: (f64, f64), slope: f64, style: LineStyle) -> Self {
+        Series::AxLine {
+            p1,
+            p2: None,
+            slope: Some(slope),
+            style,
+        }
+    }
+
+    pub fn hlines<'a, Ty, Tmin, Tmax, Uy, Umin, Umax>(
+        y: &'a Ty,
+        xmin: &'a Tmin,
+        xmax: &'a Tmax,
+        style: LineStyle,
+    ) -> Self
+    where
+        Ty: AsVector<'a, Uy>,
+        Tmin: AsVector<'a, Umin>,
+        Tmax: AsVector<'a, Umax>,
+        Uy: 'a + Num + NumCast + Copy,
+        Umin: 'a + Num + NumCast + Copy,
+        Umax: 'a + Num + NumCast + Copy,
+    {
+        let ys = vector_to_f64(y);
+        let mut xmins = vector_to_f64(xmin);
+        let mut xmaxs = vector_to_f64(xmax);
+        if xmins.len() == 1 && ys.len() > 1 {
+            xmins = vec![xmins[0]; ys.len()];
+        }
+        if xmaxs.len() == 1 && ys.len() > 1 {
+            xmaxs = vec![xmaxs[0]; ys.len()];
+        }
+        Series::HLines {
+            y: ys,
+            xmin: xmins,
+            xmax: xmaxs,
+            style,
+        }
+    }
+
+    pub fn vlines<'a, Tx, Tmin, Tmax, Ux, Umin, Umax>(
+        x: &'a Tx,
+        ymin: &'a Tmin,
+        ymax: &'a Tmax,
+        style: LineStyle,
+    ) -> Self
+    where
+        Tx: AsVector<'a, Ux>,
+        Tmin: AsVector<'a, Umin>,
+        Tmax: AsVector<'a, Umax>,
+        Ux: 'a + Num + NumCast + Copy,
+        Umin: 'a + Num + NumCast + Copy,
+        Umax: 'a + Num + NumCast + Copy,
+    {
+        let xs = vector_to_f64(x);
+        let mut ymins = vector_to_f64(ymin);
+        let mut ymaxs = vector_to_f64(ymax);
+        if ymins.len() == 1 && xs.len() > 1 {
+            ymins = vec![ymins[0]; xs.len()];
+        }
+        if ymaxs.len() == 1 && xs.len() > 1 {
+            ymaxs = vec![ymaxs[0]; xs.len()];
+        }
+        Series::VLines {
+            x: xs,
+            ymin: ymins,
+            ymax: ymaxs,
+            style,
+        }
+    }
+
+    pub fn eventplot<'a, T, U>(positions: &'a T, style: EventplotStyle) -> Self
+    where
+        T: AsVector<'a, U>,
+        U: 'a + Num + NumCast + Copy,
+    {
+        Series::EventPlot {
+            positions: vector_to_f64(positions),
+            style,
+        }
     }
 }

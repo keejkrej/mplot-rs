@@ -83,6 +83,62 @@ pub fn format_linear(value: f64) -> String {
     }
 }
 
+/// Percentage formatted labels (e.g. `0.25` -> `25%`, `0.125` -> `12.5%`) matching matplotlib PercentFormatter.
+pub fn format_percent(value: f64) -> String {
+    if !value.is_finite() {
+        return String::new();
+    }
+    let pct = value * 100.0;
+    if pct.fract().abs() < 1e-6 {
+        format!("{:.0}%", pct)
+    } else if (pct * 10.0).fract().abs() < 1e-6 {
+        format!("{:.1}%", pct)
+    } else {
+        format!("{:.2}%", pct)
+    }
+}
+
+/// Engineering notation labels with SI prefixes (e.g. `10k`, `2.5M`, `100n`) matching matplotlib EngFormatter.
+pub fn format_eng(value: f64) -> String {
+    if !value.is_finite() {
+        return String::new();
+    }
+    if value == 0.0 {
+        return "0".to_string();
+    }
+    let abs = value.abs();
+    let exp3 = (abs.log10().floor() / 3.0).floor() as i32;
+    let exp3 = exp3.clamp(-8, 8);
+    let mantissa = value / 10f64.powi(exp3 * 3);
+    let prefix = match exp3 {
+        -8 => "y",
+        -7 => "z",
+        -6 => "a",
+        -5 => "f",
+        -4 => "p",
+        -3 => "n",
+        -2 => "µ",
+        -1 => "m",
+        0 => "",
+        1 => "k",
+        2 => "M",
+        3 => "G",
+        4 => "T",
+        5 => "P",
+        6 => "E",
+        7 => "Z",
+        8 => "Y",
+        _ => "",
+    };
+    if (mantissa.fract()).abs() < 1e-6 {
+        format!("{mantissa:.0}{prefix}")
+    } else if (mantissa * 10.0).fract().abs() < 1e-6 {
+        format!("{mantissa:.1}{prefix}")
+    } else {
+        format!("{mantissa:.2}{prefix}")
+    }
+}
+
 /// Scientific notation labels (e.g. `1.5e6`, `-2e3`) for large intensity axes.
 pub fn format_scientific(value: f64) -> String {
     if !value.is_finite() {
@@ -157,5 +213,14 @@ mod tests {
         assert_eq!(format_scientific(1_500_000.0), "1.5e6");
         assert_eq!(format_scientific(1_000_000.0), "1e6");
         assert_eq!(format_scientific(-2_000.0), "-2e3");
+    }
+
+    #[test]
+    fn engineering_formats_si_prefixes() {
+        assert_eq!(format_eng(0.0), "0");
+        assert_eq!(format_eng(1_500.0), "1.5k");
+        assert_eq!(format_eng(2_000_000.0), "2M");
+        assert_eq!(format_eng(0.005), "5m");
+        assert_eq!(format_eng(0.000_002), "2µ");
     }
 }

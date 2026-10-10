@@ -12,6 +12,26 @@ pub enum Colormap {
     Cividis,
     Coolwarm,
     Turbo,
+    Greys,
+    Blues,
+    Reds,
+    Spectral,
+    RdBu,
+    YlGnBu,
+    ViridisR,
+    GrayscaleR,
+    PlasmaR,
+    InfernoR,
+    MagmaR,
+    CividisR,
+    CoolwarmR,
+    TurboR,
+    GreysR,
+    BluesR,
+    RedsR,
+    SpectralR,
+    RdBuR,
+    YlGnBuR,
 }
 
 /// Maps data values to `[0, 1]` before colormap lookup.
@@ -58,21 +78,88 @@ impl Normalize {
 }
 
 impl Colormap {
-    pub fn map(self, t: f64) -> Color {
-        let t = t.clamp(0.0, 1.0);
+    /// Return the reversed version of this colormap (matplotlib `_r` convention).
+    pub fn reversed(self) -> Self {
         match self {
-            Colormap::Grayscale => {
+            Colormap::Viridis => Colormap::ViridisR,
+            Colormap::ViridisR => Colormap::Viridis,
+            Colormap::Grayscale => Colormap::GrayscaleR,
+            Colormap::GrayscaleR => Colormap::Grayscale,
+            Colormap::Plasma => Colormap::PlasmaR,
+            Colormap::PlasmaR => Colormap::Plasma,
+            Colormap::Inferno => Colormap::InfernoR,
+            Colormap::InfernoR => Colormap::Inferno,
+            Colormap::Magma => Colormap::MagmaR,
+            Colormap::MagmaR => Colormap::Magma,
+            Colormap::Cividis => Colormap::CividisR,
+            Colormap::CividisR => Colormap::Cividis,
+            Colormap::Coolwarm => Colormap::CoolwarmR,
+            Colormap::CoolwarmR => Colormap::Coolwarm,
+            Colormap::Turbo => Colormap::TurboR,
+            Colormap::TurboR => Colormap::Turbo,
+            Colormap::Greys => Colormap::GreysR,
+            Colormap::GreysR => Colormap::Greys,
+            Colormap::Blues => Colormap::BluesR,
+            Colormap::BluesR => Colormap::Blues,
+            Colormap::Reds => Colormap::RedsR,
+            Colormap::RedsR => Colormap::Reds,
+            Colormap::Spectral => Colormap::SpectralR,
+            Colormap::SpectralR => Colormap::Spectral,
+            Colormap::RdBu => Colormap::RdBuR,
+            Colormap::RdBuR => Colormap::RdBu,
+            Colormap::YlGnBu => Colormap::YlGnBuR,
+            Colormap::YlGnBuR => Colormap::YlGnBu,
+        }
+    }
+
+    pub fn is_reversed(self) -> bool {
+        matches!(
+            self,
+            Colormap::ViridisR
+                | Colormap::GrayscaleR
+                | Colormap::PlasmaR
+                | Colormap::InfernoR
+                | Colormap::MagmaR
+                | Colormap::CividisR
+                | Colormap::CoolwarmR
+                | Colormap::TurboR
+                | Colormap::GreysR
+                | Colormap::BluesR
+                | Colormap::RedsR
+                | Colormap::SpectralR
+                | Colormap::RdBuR
+                | Colormap::YlGnBuR
+        )
+    }
+
+    pub fn map(self, t: f64) -> Color {
+        let mut t = t.clamp(0.0, 1.0);
+        if self.is_reversed() {
+            t = 1.0 - t;
+        }
+        match self {
+            Colormap::Grayscale | Colormap::GrayscaleR => {
                 let v = (t * 255.0).round() as u8;
                 Color::rgb(v, v, v)
             }
-            Colormap::Viridis => viridis(t),
-            Colormap::Plasma => interpolate_stops(t, &PLASMA_STOPS),
-            Colormap::Inferno => interpolate_stops(t, &INFERNO_STOPS),
-            Colormap::Magma => interpolate_stops(t, &MAGMA_STOPS),
-            Colormap::Cividis => interpolate_stops(t, &CIVIDIS_STOPS),
-            Colormap::Coolwarm => interpolate_stops(t, &COOLWARM_STOPS),
-            Colormap::Turbo => interpolate_stops(t, &TURBO_STOPS),
+            Colormap::Viridis | Colormap::ViridisR => viridis(t),
+            Colormap::Plasma | Colormap::PlasmaR => interpolate_stops(t, &PLASMA_STOPS),
+            Colormap::Inferno | Colormap::InfernoR => interpolate_stops(t, &INFERNO_STOPS),
+            Colormap::Magma | Colormap::MagmaR => interpolate_stops(t, &MAGMA_STOPS),
+            Colormap::Cividis | Colormap::CividisR => interpolate_stops(t, &CIVIDIS_STOPS),
+            Colormap::Coolwarm | Colormap::CoolwarmR => interpolate_stops(t, &COOLWARM_STOPS),
+            Colormap::Turbo | Colormap::TurboR => interpolate_stops(t, &TURBO_STOPS),
+            Colormap::Greys | Colormap::GreysR => interpolate_stops(t, &GREYS_STOPS),
+            Colormap::Blues | Colormap::BluesR => interpolate_stops(t, &BLUES_STOPS),
+            Colormap::Reds | Colormap::RedsR => interpolate_stops(t, &REDS_STOPS),
+            Colormap::Spectral | Colormap::SpectralR => interpolate_stops(t, &SPECTRAL_STOPS),
+            Colormap::RdBu | Colormap::RdBuR => interpolate_stops(t, &RDBU_STOPS),
+            Colormap::YlGnBu | Colormap::YlGnBuR => interpolate_stops(t, &YLGNBU_STOPS),
         }
+    }
+
+    pub fn sample(self, t: f64) -> Color {
+        self.map(t)
     }
 }
 
@@ -177,6 +264,60 @@ const TURBO_STOPS: [(f64, u8, u8, u8); 9] = [
     (1.000, 122, 4, 3),
 ];
 
+const GREYS_STOPS: [(f64, u8, u8, u8); 5] = [
+    (0.00, 255, 255, 255),
+    (0.25, 204, 204, 204),
+    (0.50, 150, 150, 150),
+    (0.75, 82, 82, 82),
+    (1.00, 0, 0, 0),
+];
+
+const BLUES_STOPS: [(f64, u8, u8, u8); 5] = [
+    (0.00, 247, 251, 255),
+    (0.25, 198, 219, 239),
+    (0.50, 107, 174, 214),
+    (0.75, 33, 113, 181),
+    (1.00, 8, 48, 107),
+];
+
+const REDS_STOPS: [(f64, u8, u8, u8); 5] = [
+    (0.00, 255, 245, 240),
+    (0.25, 252, 187, 161),
+    (0.50, 251, 106, 74),
+    (0.75, 203, 24, 29),
+    (1.00, 103, 0, 13),
+];
+
+const SPECTRAL_STOPS: [(f64, u8, u8, u8); 9] = [
+    (0.000, 158, 1, 66),
+    (0.125, 213, 62, 79),
+    (0.250, 244, 109, 67),
+    (0.375, 253, 174, 97),
+    (0.500, 254, 224, 139),
+    (0.625, 230, 245, 152),
+    (0.750, 171, 221, 164),
+    (0.875, 102, 194, 165),
+    (1.000, 50, 136, 189),
+];
+
+const RDBU_STOPS: [(f64, u8, u8, u8); 7] = [
+    (0.000, 103, 0, 31),
+    (0.200, 202, 0, 32),
+    (0.400, 244, 165, 130),
+    (0.500, 247, 247, 247),
+    (0.600, 146, 197, 222),
+    (0.800, 5, 113, 176),
+    (1.000, 5, 48, 97),
+];
+
+const YLGNBU_STOPS: [(f64, u8, u8, u8); 5] = [
+    (0.00, 255, 255, 217),
+    (0.25, 199, 233, 180),
+    (0.50, 65, 182, 196),
+    (0.75, 29, 145, 192),
+    (1.00, 8, 29, 88),
+];
+
 fn lerp_u8(a: u8, b: u8, t: f64) -> u8 {
     ((f64::from(a) * (1.0 - t)) + (f64::from(b) * t)).round() as u8
 }
@@ -208,11 +349,26 @@ mod tests {
             Colormap::Cividis,
             Colormap::Coolwarm,
             Colormap::Turbo,
+            Colormap::Greys,
+            Colormap::Blues,
+            Colormap::Reds,
+            Colormap::Spectral,
+            Colormap::RdBu,
+            Colormap::YlGnBu,
         ] {
             let c0 = cmap.map(0.0);
             let c1 = cmap.map(0.5);
             let c2 = cmap.map(1.0);
             assert!(c0.a > 0 && c1.a > 0 && c2.a > 0);
         }
+    }
+
+    #[test]
+    fn reversed_colormaps_invert_endpoints() {
+        let fwd = Colormap::Viridis;
+        let rev = fwd.reversed();
+        assert_eq!(fwd.map(0.0), rev.map(1.0));
+        assert_eq!(fwd.map(1.0), rev.map(0.0));
+        assert_eq!(rev.reversed(), fwd);
     }
 }

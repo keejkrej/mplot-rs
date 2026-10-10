@@ -67,20 +67,107 @@ impl TickLabels {
     }
 }
 
-/// Legend display options.
+/// Legend location corresponding to matplotlib `loc`.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum LegendLoc {
+    #[default]
+    OutsideTop,
+    UpperRight,
+    UpperLeft,
+    LowerLeft,
+    LowerRight,
+    CenterRight,
+    CenterLeft,
+    LowerCenter,
+    UpperCenter,
+    Center,
+    Best,
+}
+
+/// Legend display options.
+#[derive(Clone, Debug, PartialEq)]
 pub struct LegendStyle {
     pub show: bool,
+    pub loc: LegendLoc,
+    pub ncols: usize,
+    pub title: Option<String>,
+    pub frameon: bool,
+}
+
+impl Default for LegendStyle {
+    fn default() -> Self {
+        LegendStyle {
+            show: false,
+            loc: LegendLoc::OutsideTop,
+            ncols: 1,
+            title: None,
+            frameon: true,
+        }
+    }
 }
 
 impl LegendStyle {
     pub fn show() -> Self {
-        LegendStyle { show: true }
+        LegendStyle {
+            show: true,
+            loc: LegendLoc::OutsideTop,
+            ncols: 1,
+            title: None,
+            frameon: true,
+        }
+    }
+
+    pub fn loc(mut self, loc: LegendLoc) -> Self {
+        self.loc = loc;
+        self.show = true;
+        self
+    }
+
+    pub fn ncols(mut self, ncols: usize) -> Self {
+        self.ncols = ncols.max(1);
+        self.show = true;
+        self
+    }
+
+    pub fn columns(self, cols: usize) -> Self {
+        self.ncols(cols)
+    }
+
+    pub fn title(mut self, title: impl Into<String>) -> Self {
+        self.title = Some(title.into());
+        self.show = true;
+        self
+    }
+
+    pub fn frameon(mut self, frameon: bool) -> Self {
+        self.frameon = frameon;
+        self.show = true;
+        self
     }
 }
 
 use crate::color::Color;
 use crate::series::Scale;
+
+/// Spines visibility styling (matplotlib `ax.spines[...]`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SpinesStyle {
+    pub top: bool,
+    pub right: bool,
+    pub bottom: bool,
+    pub left: bool,
+}
+
+impl Default for SpinesStyle {
+    fn default() -> Self {
+        SpinesStyle {
+            top: true,
+            right: true,
+            bottom: true,
+            left: true,
+        }
+    }
+}
 
 /// Grid line styling (matplotlib `ax.grid(...)`).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -136,6 +223,10 @@ pub enum TickFormat {
     Auto,
     /// Scientific notation (`1.5e6`).
     Scientific,
+    /// Percentage format (`25%`).
+    Percent,
+    /// Engineering notation with SI prefix (`10k`, `2.5M`, `100n`).
+    Engineering,
 }
 
 /// Rotation for category / tick labels.
@@ -195,6 +286,7 @@ pub struct AxesStyle {
     invert_x: bool,
     invert_y: bool,
     grid: Option<GridStyle>,
+    spines: SpinesStyle,
     hide: bool,
     x_ticks: Option<TickLabels>,
     y_ticks: Option<TickLabels>,
@@ -279,6 +371,10 @@ impl AxesStyle {
     pub fn hide(mut self, hide: bool) -> Self {
         self.hide = hide;
         self
+    }
+
+    pub fn hide_axes(self, hide: bool) -> Self {
+        self.hide(hide)
     }
 
     pub fn x_tick_labels<'a, S, T, U>(mut self, ticks: &'a T, labels: &[S]) -> Self
@@ -406,8 +502,33 @@ impl AxesStyle {
         self.x_tick_label_rotation
     }
 
+    pub fn spines(mut self, spines: SpinesStyle) -> Self {
+        self.spines = spines;
+        self
+    }
+
+    pub fn spines_visible(mut self, top: bool, right: bool, bottom: bool, left: bool) -> Self {
+        self.spines = SpinesStyle {
+            top,
+            right,
+            bottom,
+            left,
+        };
+        self
+    }
+
+    pub fn despine(mut self) -> Self {
+        self.spines.top = false;
+        self.spines.right = false;
+        self
+    }
+
+    pub(crate) fn spines_value(&self) -> SpinesStyle {
+        self.spines
+    }
+
     pub(crate) fn legend_value(&self) -> LegendStyle {
-        self.legend
+        self.legend.clone()
     }
 }
 
@@ -649,6 +770,294 @@ impl<'a> PanelBuilder<'a> {
         self.spec
             .series
             .push(crate::series::Series::axvspan(xmin, xmax, style));
+        self
+    }
+
+    pub fn fill_betweenx<'b, T, U>(
+        &mut self,
+        y: &'b T,
+        x1: &'b T,
+        x2: &'b T,
+        style: crate::series::FillBetweenStyle,
+    ) -> &mut Self
+    where
+        T: AsVector<'b, U>,
+        U: 'b + Num + NumCast + Copy,
+    {
+        self.spec
+            .series
+            .push(crate::series::Series::fill_betweenx(y, x1, x2, style));
+        self
+    }
+
+    pub fn stem<'b, Tx, Ty, Ux, Uy>(
+        &mut self,
+        x: &'b Tx,
+        y: &'b Ty,
+        style: crate::series::StemStyle,
+    ) -> &mut Self
+    where
+        Tx: AsVector<'b, Ux>,
+        Ty: AsVector<'b, Uy>,
+        Ux: 'b + Num + NumCast + Copy,
+        Uy: 'b + Num + NumCast + Copy,
+    {
+        self.spec
+            .series
+            .push(crate::series::Series::stem(x, y, style));
+        self
+    }
+
+    pub fn stem_y<'b, T, U>(
+        &mut self,
+        y: &'b T,
+        style: crate::series::StemStyle,
+    ) -> &mut Self
+    where
+        T: AsVector<'b, U>,
+        U: 'b + Num + NumCast + Copy,
+    {
+        let n = y.vec_size();
+        let xs: Vec<f64> = (0..n).map(|i| i as f64).collect();
+        let ys = vector_to_f64(y);
+        self.spec
+            .series
+            .push(crate::series::Series::Stem {
+                x: xs,
+                y: ys,
+                style,
+            });
+        self
+    }
+
+    pub fn stackplot<'b, T, U>(
+        &mut self,
+        x: &'b T,
+        ys: &[&'b T],
+        style: crate::series::StackplotStyle,
+    ) -> &mut Self
+    where
+        T: AsVector<'b, U>,
+        U: 'b + Num + NumCast + Copy,
+    {
+        self.spec
+            .series
+            .push(crate::series::Series::stackplot(x, ys, style));
+        self
+    }
+
+    pub fn stairs<'b, Tv, Te, Uv, Ue>(
+        &mut self,
+        values: &'b Tv,
+        edges: &'b Te,
+        style: crate::series::StairsStyle,
+    ) -> &mut Self
+    where
+        Tv: AsVector<'b, Uv>,
+        Te: AsVector<'b, Ue>,
+        Uv: 'b + Num + NumCast + Copy,
+        Ue: 'b + Num + NumCast + Copy,
+    {
+        self.spec
+            .series
+            .push(crate::series::Series::stairs(values, Some(edges), style));
+        self
+    }
+
+    pub fn stairs_values<'b, T, U>(
+        &mut self,
+        values: &'b T,
+        style: crate::series::StairsStyle,
+    ) -> &mut Self
+    where
+        T: AsVector<'b, U>,
+        U: 'b + Num + NumCast + Copy,
+    {
+        self.spec
+            .series
+            .push(crate::series::Series::stairs(
+                values,
+                None::<&Vec<f64>>,
+                style,
+            ));
+        self
+    }
+
+    pub fn quiver<'b, T, U>(
+        &mut self,
+        x: &'b T,
+        y: &'b T,
+        u: &'b T,
+        v: &'b T,
+        style: crate::series::QuiverStyle,
+    ) -> &mut Self
+    where
+        T: AsVector<'b, U>,
+        U: 'b + Num + NumCast + Copy,
+    {
+        self.spec
+            .series
+            .push(crate::series::Series::quiver(x, y, u, v, style));
+        self
+    }
+
+    pub fn pie<'b, T, U>(
+        &mut self,
+        values: &'b T,
+        style: crate::series::PieStyle,
+    ) -> &mut Self
+    where
+        T: AsVector<'b, U>,
+        U: 'b + Num + NumCast + Copy,
+    {
+        self.spec
+            .series
+            .push(crate::series::Series::pie(values, style));
+        self
+    }
+
+    pub fn hist2d<'b, T, U>(
+        &mut self,
+        x: &'b T,
+        y: &'b T,
+        style: crate::series::Hist2DStyle,
+    ) -> &mut Self
+    where
+        T: AsVector<'b, U>,
+        U: 'b + Num + NumCast + Copy,
+    {
+        self.spec
+            .series
+            .push(crate::series::Series::hist2d(x, y, style));
+        self
+    }
+
+    pub fn axline(
+        &mut self,
+        p1: (f64, f64),
+        p2: (f64, f64),
+        style: crate::series::LineStyle,
+    ) -> &mut Self {
+        self.spec
+            .series
+            .push(crate::series::Series::axline(p1, p2, style));
+        self
+    }
+
+    pub fn axline_slope(
+        &mut self,
+        p1: (f64, f64),
+        slope: f64,
+        style: crate::series::LineStyle,
+    ) -> &mut Self {
+        self.spec
+            .series
+            .push(crate::series::Series::axline_slope(p1, slope, style));
+        self
+    }
+
+    pub fn hlines<'b, Ty, Tmin, Tmax, Uy, Umin, Umax>(
+        &mut self,
+        y: &'b Ty,
+        xmin: &'b Tmin,
+        xmax: &'b Tmax,
+        style: crate::series::LineStyle,
+    ) -> &mut Self
+    where
+        Ty: AsVector<'b, Uy>,
+        Tmin: AsVector<'b, Umin>,
+        Tmax: AsVector<'b, Umax>,
+        Uy: 'b + Num + NumCast + Copy,
+        Umin: 'b + Num + NumCast + Copy,
+        Umax: 'b + Num + NumCast + Copy,
+    {
+        self.spec
+            .series
+            .push(crate::series::Series::hlines(y, xmin, xmax, style));
+        self
+    }
+
+    pub fn hlines_scalar<'b, T, U>(
+        &mut self,
+        y: &'b T,
+        xmin: f64,
+        xmax: f64,
+        style: crate::series::LineStyle,
+    ) -> &mut Self
+    where
+        T: AsVector<'b, U>,
+        U: 'b + Num + NumCast + Copy,
+    {
+        let ys = vector_to_f64(y);
+        let n = ys.len();
+        self.spec
+            .series
+            .push(crate::series::Series::HLines {
+                y: ys,
+                xmin: vec![xmin; n],
+                xmax: vec![xmax; n],
+                style,
+            });
+        self
+    }
+
+    pub fn vlines<'b, Tx, Tmin, Tmax, Ux, Umin, Umax>(
+        &mut self,
+        x: &'b Tx,
+        ymin: &'b Tmin,
+        ymax: &'b Tmax,
+        style: crate::series::LineStyle,
+    ) -> &mut Self
+    where
+        Tx: AsVector<'b, Ux>,
+        Tmin: AsVector<'b, Umin>,
+        Tmax: AsVector<'b, Umax>,
+        Ux: 'b + Num + NumCast + Copy,
+        Umin: 'b + Num + NumCast + Copy,
+        Umax: 'b + Num + NumCast + Copy,
+    {
+        self.spec
+            .series
+            .push(crate::series::Series::vlines(x, ymin, ymax, style));
+        self
+    }
+
+    pub fn vlines_scalar<'b, T, U>(
+        &mut self,
+        x: &'b T,
+        ymin: f64,
+        ymax: f64,
+        style: crate::series::LineStyle,
+    ) -> &mut Self
+    where
+        T: AsVector<'b, U>,
+        U: 'b + Num + NumCast + Copy,
+    {
+        let xs = vector_to_f64(x);
+        let n = xs.len();
+        self.spec
+            .series
+            .push(crate::series::Series::VLines {
+                x: xs,
+                ymin: vec![ymin; n],
+                ymax: vec![ymax; n],
+                style,
+            });
+        self
+    }
+
+    pub fn eventplot<'b, T, U>(
+        &mut self,
+        positions: &'b T,
+        style: crate::series::EventplotStyle,
+    ) -> &mut Self
+    where
+        T: AsVector<'b, U>,
+        U: 'b + Num + NumCast + Copy,
+    {
+        self.spec
+            .series
+            .push(crate::series::Series::eventplot(positions, style));
         self
     }
 

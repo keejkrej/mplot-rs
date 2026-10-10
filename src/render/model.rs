@@ -1,9 +1,10 @@
 use crate::color::Color;
 use crate::colormap::{Colormap, Normalize};
-use crate::panel::{GridStyle, TickFormat, TickLabelRotation, TickLabels};
+use crate::panel::{GridStyle, LegendStyle, SpinesStyle, TickFormat, TickLabelRotation, TickLabels};
 use crate::series::{
-    ArrowStyle, HorizontalAlignment, LineDash, Marker, StepWhere, TextStyle, VerticalAlignment,
-    ViolinStyle,
+    ArrowStyle, BboxStyle, EventplotStyle, Hist2DStyle, HorizontalAlignment, LineDash, LineStyle,
+    Marker, PieStyle, QuiverStyle, StackplotStyle, StairsStyle, StemStyle, StepWhere, TextStyle,
+    VerticalAlignment, ViolinStyle,
 };
 
 /// Layout insets applied during rendering (constrained layout).
@@ -38,6 +39,9 @@ pub struct ScatterSeries {
     pub label: String,
     pub color: Color,
     pub size: f64,
+    pub sizes: Option<Vec<f64>>,
+    pub values: Option<Vec<f64>>,
+    pub colormap: Option<Colormap>,
     pub marker: Marker,
     pub alpha: f64,
     pub edge_color: Option<Color>,
@@ -93,6 +97,13 @@ pub struct BarSeries {
     pub color: Color,
     pub width: f64,
     pub baseline: f64,
+    pub bottom: Option<Vec<f64>>,
+    pub yerr: Option<Vec<f64>>,
+    pub yerr_lower: Option<Vec<f64>>,
+    pub capsize: f64,
+    pub edge_color: Option<Color>,
+    pub edge_width: f64,
+    pub alpha: f64,
     pub label: String,
 }
 
@@ -103,6 +114,13 @@ pub struct BarHSeries {
     pub color: Color,
     pub height: f64,
     pub baseline: f64,
+    pub left: Option<Vec<f64>>,
+    pub xerr: Option<Vec<f64>>,
+    pub xerr_lower: Option<Vec<f64>>,
+    pub capsize: f64,
+    pub edge_color: Option<Color>,
+    pub edge_width: f64,
+    pub alpha: f64,
     pub label: String,
 }
 
@@ -158,6 +176,7 @@ pub struct TextSeries {
     pub ha: HorizontalAlignment,
     pub va: VerticalAlignment,
     pub rotation: f64,
+    pub bbox: Option<BboxStyle>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -212,6 +231,89 @@ pub struct ViolinSeries {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub struct StemSeries {
+    pub x: Vec<f64>,
+    pub y: Vec<f64>,
+    pub style: StemStyle,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct StackplotSeries {
+    pub x: Vec<f64>,
+    pub ys: Vec<Vec<f64>>,
+    pub style: StackplotStyle,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct FillBetweenXSeries {
+    pub y: Vec<f64>,
+    pub x1: Vec<f64>,
+    pub x2: Vec<f64>,
+    pub color: Color,
+    pub alpha: f64,
+    pub label: String,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct StairsSeries {
+    pub values: Vec<f64>,
+    pub edges: Option<Vec<f64>>,
+    pub style: StairsStyle,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct QuiverSeries {
+    pub x: Vec<f64>,
+    pub y: Vec<f64>,
+    pub u: Vec<f64>,
+    pub v: Vec<f64>,
+    pub style: QuiverStyle,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct PieSeries {
+    pub values: Vec<f64>,
+    pub style: PieStyle,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Hist2DSeries {
+    pub x: Vec<f64>,
+    pub y: Vec<f64>,
+    pub style: Hist2DStyle,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct AxLineSeries {
+    pub p1: (f64, f64),
+    pub p2: Option<(f64, f64)>,
+    pub slope: Option<f64>,
+    pub style: LineStyle,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct HLinesSeries {
+    pub y: Vec<f64>,
+    pub xmin: Vec<f64>,
+    pub xmax: Vec<f64>,
+    pub style: LineStyle,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct VLinesSeries {
+    pub x: Vec<f64>,
+    pub ymin: Vec<f64>,
+    pub ymax: Vec<f64>,
+    pub style: LineStyle,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct EventplotSeries {
+    pub positions: Vec<f64>,
+    pub style: EventplotStyle,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub enum CompiledSeries {
     Line(LineSeries),
     Scatter(ScatterSeries),
@@ -223,14 +325,25 @@ pub enum CompiledSeries {
     BarH(BarHSeries),
     Histogram(HistSeries),
     FillBetween(FillBetweenSeries),
+    FillBetweenX(FillBetweenXSeries),
     Image(ImageSeries),
     Contour(ContourSeries),
     Text(TextSeries),
     Annotation(AnnotationSeries),
+    Stem(StemSeries),
+    Stackplot(StackplotSeries),
+    Stairs(StairsSeries),
+    Quiver(QuiverSeries),
+    Pie(PieSeries),
+    Hist2D(Hist2DSeries),
     AxHLine(AxHLineSeries),
     AxVLine(AxVLineSeries),
     AxHSpan(AxHSpanSeries),
     AxVSpan(AxVSpanSeries),
+    AxLine(AxLineSeries),
+    HLines(HLinesSeries),
+    VLines(VLinesSeries),
+    EventPlot(EventplotSeries),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -253,12 +366,14 @@ pub struct CompiledPanel {
     pub hide_axes: bool,
     pub show_grid: bool,
     pub grid_style: Option<GridStyle>,
+    pub spines: SpinesStyle,
     pub ticks_x: Option<TickLabels>,
     pub ticks_y: Option<TickLabels>,
     pub x_tick_format: TickFormat,
     pub y_tick_format: TickFormat,
     pub x_tick_label_rotation: TickLabelRotation,
     pub show_legend: bool,
+    pub legend_style: LegendStyle,
     pub layout: PanelLayout,
     pub series: Vec<CompiledSeries>,
 }

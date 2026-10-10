@@ -8,15 +8,19 @@ use plotters::style::{Color, RGBColor, ShapeStyle, TextStyle};
 use crate::axes::PanelScales;
 use crate::colormap::{Colormap, Normalize};
 use crate::render::model::{
-    AnnotationSeries, AxHLineSeries, AxHSpanSeries, AxVLineSeries, AxVSpanSeries, BarHSeries,
-    BarSeries, BoxplotSeries, CompiledSeries, ContourSeries, ErrorBarSeries, FillBetweenSeries,
-    HistSeries, ImageSeries, LineSeries, ScatterSeries, StepSeries, TextSeries, ViolinSeries,
+    AnnotationSeries, AxHLineSeries, AxHSpanSeries, AxLineSeries, AxVLineSeries, AxVSpanSeries,
+    BarHSeries, BarSeries, BoxplotSeries, CompiledSeries, ContourSeries, ErrorBarSeries,
+    EventplotSeries, FillBetweenSeries, FillBetweenXSeries, HLinesSeries, Hist2DSeries, HistSeries,
+    ImageSeries, LineSeries, PieSeries, QuiverSeries, ScatterSeries, StackplotSeries, StairsSeries,
+    StemSeries, StepSeries, TextSeries, VLinesSeries, ViolinSeries,
 };
 use crate::render::mpl_style::{
     marker_radius_px, stroke_width_px, MPL_FONT, MPL_LINE_WIDTH, MPL_MARKER_SIZE,
 };
 use crate::render::scene::{box_positions, box_stats, default_box_width, violin_stats};
-use crate::series::{HorizontalAlignment, LineDash, Marker, StepWhere, VerticalAlignment};
+use crate::series::{
+    EventplotOrientation, HorizontalAlignment, LineDash, Marker, StepWhere, VerticalAlignment,
+};
 
 type Chart<'a, DB> = ChartContext<'a, DB, Cartesian2d<RangedCoordf64, RangedCoordf64>>;
 
@@ -48,9 +52,16 @@ pub fn draw_series<DB: DrawingBackend>(
         CompiledSeries::BarH(barh) => draw_barh(chart, barh, scales, dpi),
         CompiledSeries::Histogram(hist) => draw_histogram(chart, hist, scales, dpi),
         CompiledSeries::FillBetween(fill) => draw_fill_between(chart, fill, scales, dpi),
+        CompiledSeries::FillBetweenX(fill) => draw_fill_betweenx(chart, fill, scales, dpi),
+        CompiledSeries::Stem(stem) => draw_stem(chart, stem, scales, dpi, clip),
+        CompiledSeries::Stackplot(stack) => draw_stackplot(chart, stack, scales, dpi),
+        CompiledSeries::Stairs(stairs) => draw_stairs(chart, stairs, scales, dpi, clip),
+        CompiledSeries::Quiver(quiver) => draw_quiver(chart, quiver, scales, dpi, clip),
+        CompiledSeries::Pie(pie) => draw_pie(chart, pie, scales, tick_fontsize_px, dpi),
+        CompiledSeries::Hist2D(hist) => draw_hist2d(chart, hist, scales),
         CompiledSeries::Image(image) => draw_image(chart, image, scales),
         CompiledSeries::Contour(contour) => draw_contour(chart, contour, scales, dpi),
-        CompiledSeries::Text(text) => draw_text(chart, text, scales, tick_fontsize_px),
+        CompiledSeries::Text(text) => draw_text(chart, text, scales, tick_fontsize_px, dpi),
         CompiledSeries::Annotation(ann) => {
             draw_annotation(chart, ann, scales, tick_fontsize_px, dpi)
         }
@@ -58,6 +69,10 @@ pub fn draw_series<DB: DrawingBackend>(
         CompiledSeries::AxVLine(line) => draw_axvline(chart, line, scales, dpi, clip),
         CompiledSeries::AxHSpan(span) => draw_axhspan(chart, span, scales, dpi, clip),
         CompiledSeries::AxVSpan(span) => draw_axvspan(chart, span, scales, dpi, clip),
+        CompiledSeries::AxLine(line) => draw_axline(chart, line, scales, dpi, clip),
+        CompiledSeries::HLines(lines) => draw_hlines(chart, lines, scales, dpi, clip),
+        CompiledSeries::VLines(lines) => draw_vlines(chart, lines, scales, dpi, clip),
+        CompiledSeries::EventPlot(ev) => draw_eventplot(chart, ev, scales, dpi, clip),
     }
 }
 
@@ -399,6 +414,103 @@ pub(crate) fn draw_marker_shape<DB: DrawingBackend>(
                     .map_err(|_| "failed to draw marker")?;
             }
         }
+        Marker::TriangleLeft => {
+            let h_top = (s as f64 * 1.2).round() as i32;
+            let h_bot = (s as f64 * 0.7).round() as i32;
+            let pts = vec![(-h_top, 0), (h_bot, -s), (h_bot, s)];
+            if style.filled {
+                chart
+                    .draw_series(std::iter::once(
+                        EmptyElement::at((x, y)) + Polygon::new(pts, style),
+                    ))
+                    .map_err(|_| "failed to draw marker")?;
+            } else {
+                let mut stroke_pts = pts;
+                stroke_pts.push((-h_top, 0));
+                chart
+                    .draw_series(std::iter::once(
+                        EmptyElement::at((x, y)) + PathElement::new(stroke_pts, style),
+                    ))
+                    .map_err(|_| "failed to draw marker")?;
+            }
+        }
+        Marker::TriangleRight => {
+            let h_top = (s as f64 * 1.2).round() as i32;
+            let h_bot = (s as f64 * 0.7).round() as i32;
+            let pts = vec![(h_top, 0), (-h_bot, -s), (-h_bot, s)];
+            if style.filled {
+                chart
+                    .draw_series(std::iter::once(
+                        EmptyElement::at((x, y)) + Polygon::new(pts, style),
+                    ))
+                    .map_err(|_| "failed to draw marker")?;
+            } else {
+                let mut stroke_pts = pts;
+                stroke_pts.push((h_top, 0));
+                chart
+                    .draw_series(std::iter::once(
+                        EmptyElement::at((x, y)) + PathElement::new(stroke_pts, style),
+                    ))
+                    .map_err(|_| "failed to draw marker")?;
+            }
+        }
+        Marker::Pentagon => {
+            let mut pts = Vec::with_capacity(5);
+            let r = s as f64 * 1.15;
+            for i in 0..5 {
+                let angle = (i as f64) * std::f64::consts::PI * 2.0 / 5.0 - std::f64::consts::FRAC_PI_2;
+                pts.push(((r * angle.cos()).round() as i32, (r * angle.sin()).round() as i32));
+            }
+            if style.filled {
+                chart
+                    .draw_series(std::iter::once(EmptyElement::at((x, y)) + Polygon::new(pts, style)))
+                    .map_err(|_| "failed to draw marker")?;
+            } else {
+                let mut stroke_pts = pts;
+                if let Some(first) = stroke_pts.first().copied() {
+                    stroke_pts.push(first);
+                }
+                chart
+                    .draw_series(std::iter::once(EmptyElement::at((x, y)) + PathElement::new(stroke_pts, style)))
+                    .map_err(|_| "failed to draw marker")?;
+            }
+        }
+        Marker::Hexagon => {
+            let mut pts = Vec::with_capacity(6);
+            let r = s as f64 * 1.15;
+            for i in 0..6 {
+                let angle = (i as f64) * std::f64::consts::PI / 3.0;
+                pts.push(((r * angle.cos()).round() as i32, (r * angle.sin()).round() as i32));
+            }
+            if style.filled {
+                chart
+                    .draw_series(std::iter::once(EmptyElement::at((x, y)) + Polygon::new(pts, style)))
+                    .map_err(|_| "failed to draw marker")?;
+            } else {
+                let mut stroke_pts = pts;
+                if let Some(first) = stroke_pts.first().copied() {
+                    stroke_pts.push(first);
+                }
+                chart
+                    .draw_series(std::iter::once(EmptyElement::at((x, y)) + PathElement::new(stroke_pts, style)))
+                    .map_err(|_| "failed to draw marker")?;
+            }
+        }
+        Marker::Point => {
+            chart
+                .draw_series(std::iter::once(Circle::new((x, y), (s / 3).max(1), style)))
+                .map_err(|_| "failed to draw marker")?;
+        }
+        Marker::VLine => {
+            chart
+                .draw_series(std::iter::once(EmptyElement::at((x, y)) + PathElement::new(vec![(0, -s), (0, s)], style)))
+                .map_err(|_| "failed to draw marker")?;
+        }
+        Marker::HLine => {
+            chart
+                .draw_series(std::iter::once(EmptyElement::at((x, y)) + PathElement::new(vec![(-s, 0), (s, 0)], style)))
+                .map_err(|_| "failed to draw marker")?;
+        }
     }
     Ok(())
 }
@@ -431,28 +543,101 @@ fn draw_bar<DB: DrawingBackend>(
     scales: PanelScales,
     dpi: u32,
 ) -> Result<(), &'static str> {
-    let rgb = bar.color.to_rgb();
     let half = bar.width / 2.0;
-    let y_base = scales.y.data_to_axis(bar.baseline);
-    for (x, height) in bar.x.iter().zip(bar.heights.iter()) {
-        let x0 = *x - half;
-        let x1 = *x + half;
-        let y_val = scales.y.data_to_axis(*height);
-        let (y0, y1) = if y_base <= y_val {
-            (y_base, y_val)
+    let base_color = bar.color.with_alpha(bar.alpha);
+    let edge_color = bar.edge_color.map(|c| c.with_alpha(bar.alpha));
+
+    for (i, (&x, &height)) in bar.x.iter().zip(bar.heights.iter()).enumerate() {
+        let bottom = bar
+            .bottom
+            .as_ref()
+            .and_then(|b| b.get(i).copied())
+            .unwrap_or(bar.baseline);
+        let x0 = x - half;
+        let x1 = x + half;
+        let y_bot = scales.y.data_to_axis(bottom);
+        let y_top = scales.y.data_to_axis(bottom + height);
+        let (y0, y1) = if y_bot <= y_top {
+            (y_bot, y_top)
         } else {
-            (y_val, y_base)
+            (y_top, y_bot)
         };
         chart
             .draw_series(std::iter::once(Rectangle::new(
                 [(x0, y0), (x1, y1)],
                 ShapeStyle {
-                    color: rgb.to_rgba(),
+                    color: base_color.to_rgba(),
                     filled: true,
-                    stroke_width: stroke_width_px(1.0, dpi),
+                    stroke_width: 0,
                 },
             )))
             .map_err(|_| "failed to draw bar")?;
+
+        if let Some(ec) = edge_color {
+            if bar.edge_width > 0.0 {
+                chart
+                    .draw_series(std::iter::once(PathElement::new(
+                        vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1), (x0, y0)],
+                        ShapeStyle {
+                            color: ec.to_rgba(),
+                            filled: false,
+                            stroke_width: stroke_width_px(bar.edge_width, dpi),
+                        },
+                    )))
+                    .map_err(|_| "failed to draw bar edge")?;
+            }
+        }
+
+        // Draw error bars if yerr is present
+        if let Some(ref yerr) = bar.yerr {
+            if let Some(&err_top) = yerr.get(i) {
+                let err_bot = bar
+                    .yerr_lower
+                    .as_ref()
+                    .and_then(|yl| yl.get(i).copied())
+                    .unwrap_or(err_top);
+                let center_y = bottom + height;
+                let y_top_val = center_y + err_top;
+                let y_bot_val = center_y - err_bot;
+                let y_top_px = scales.y.data_to_axis(y_top_val);
+                let y_bot_px = scales.y.data_to_axis(y_bot_val);
+
+                let e_color = edge_color.unwrap_or(base_color);
+                let err_style = ShapeStyle {
+                    color: e_color.to_rgba(),
+                    filled: false,
+                    stroke_width: stroke_width_px(1.5, dpi),
+                };
+                let cap_style = ShapeStyle {
+                    color: e_color.to_rgba(),
+                    filled: false,
+                    stroke_width: stroke_width_px(1.5, dpi),
+                };
+                let cap_hw = (bar.capsize * dpi as f64 / 72.0 / 2.0).round().max(1.0) as i32;
+
+                chart
+                    .draw_series(std::iter::once(PathElement::new(
+                        vec![(x, y_bot_px), (x, y_top_px)],
+                        err_style,
+                    )))
+                    .map_err(|_| "failed to draw bar errorbar stem")?;
+
+                if bar.capsize > 0.0 {
+                    chart
+                        .draw_series(std::iter::once(
+                            EmptyElement::at((x, y_top_px))
+                                + PathElement::new(vec![(-cap_hw, 0), (cap_hw, 0)], cap_style),
+                        ))
+                        .map_err(|_| "failed to draw bar errorbar cap")?;
+                    chart
+                        .draw_series(std::iter::once(
+                            EmptyElement::at((x, y_bot_px))
+                                + PathElement::new(vec![(-cap_hw, 0), (cap_hw, 0)], cap_style),
+                        ))
+                        .map_err(|_| "failed to draw bar errorbar cap")?;
+                }
+            }
+        }
     }
     Ok(())
 }
@@ -565,6 +750,632 @@ fn draw_fill_between<DB: DrawingBackend>(
             },
         )))
         .map_err(|_| "failed to draw fill_between")?;
+    Ok(())
+}
+
+fn draw_fill_betweenx<DB: DrawingBackend>(
+    chart: &mut Chart<'_, DB>,
+    fill: &FillBetweenXSeries,
+    scales: PanelScales,
+    _dpi: u32,
+) -> Result<(), &'static str> {
+    if fill.y.len() != fill.x1.len() || fill.y.len() != fill.x2.len() || fill.y.is_empty() {
+        return Ok(());
+    }
+    let mut polygon = Vec::with_capacity(fill.y.len() * 2);
+    for (y, x) in fill.y.iter().zip(fill.x1.iter()) {
+        if scales.x.usable(*x) && scales.y.usable(*y) {
+            polygon.push(scales.map_xy(*x, *y));
+        }
+    }
+    for (y, x) in fill.y.iter().zip(fill.x2.iter()).rev() {
+        if scales.x.usable(*x) && scales.y.usable(*y) {
+            polygon.push(scales.map_xy(*x, *y));
+        }
+    }
+    if polygon.len() < 3 {
+        return Ok(());
+    }
+    polygon.push(polygon[0]);
+    let fill_color = if fill.alpha < 1.0 {
+        fill.color.with_alpha(fill.alpha)
+    } else {
+        fill.color
+    };
+    chart
+        .draw_series(std::iter::once(PathElement::new(
+            polygon,
+            ShapeStyle {
+                color: fill_color.to_rgba(),
+                filled: true,
+                stroke_width: 0,
+            },
+        )))
+        .map_err(|_| "failed to draw fill_betweenx")?;
+    Ok(())
+}
+
+fn draw_stem<DB: DrawingBackend>(
+    chart: &mut Chart<'_, DB>,
+    stem: &StemSeries,
+    scales: PanelScales,
+    dpi: u32,
+    clip: ClipRect,
+) -> Result<(), &'static str> {
+    if stem.x.len() != stem.y.len() || stem.x.is_empty() {
+        return Ok(());
+    }
+    let bottom = stem.style.bottom_value();
+    let is_horizontal = stem.style.horizontal_value();
+    let line_width = stem.style.line_width_value();
+    let line_color = stem.style.color_value();
+    let line_dash = stem.style.line_dash_value();
+    let marker = stem.style.marker_value();
+    let marker_size = stem.style.marker_size_value();
+    let marker_color = stem.style.marker_color_value().unwrap_or(line_color);
+    let base_color = stem
+        .style
+        .base_color_value()
+        .unwrap_or(crate::color::Color::rgb(128, 128, 128));
+    let base_width = stem.style.base_width_value();
+
+    if base_width > 0.0 {
+        let base_style = ShapeStyle {
+            color: base_color.to_rgba(),
+            filled: false,
+            stroke_width: stroke_width_px(base_width, dpi),
+        };
+        if is_horizontal {
+            let y_min = stem.y.iter().copied().fold(f64::INFINITY, f64::min);
+            let y_max = stem.y.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+            let p0 = scales.map_xy(bottom, y_min);
+            let p1 = scales.map_xy(bottom, y_max);
+            if let Some(((c0x, c0y), (c1x, c1y))) = clip_segment(p0.0, p0.1, p1.0, p1.1, clip) {
+                chart
+                    .draw_series(std::iter::once(PathElement::new(
+                        vec![(c0x, c0y), (c1x, c1y)],
+                        base_style,
+                    )))
+                    .map_err(|_| "failed to draw stem baseline")?;
+            }
+        } else {
+            let x_min = stem.x.iter().copied().fold(f64::INFINITY, f64::min);
+            let x_max = stem.x.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+            let p0 = scales.map_xy(x_min, bottom);
+            let p1 = scales.map_xy(x_max, bottom);
+            if let Some(((c0x, c0y), (c1x, c1y))) = clip_segment(p0.0, p0.1, p1.0, p1.1, clip) {
+                chart
+                    .draw_series(std::iter::once(PathElement::new(
+                        vec![(c0x, c0y), (c1x, c1y)],
+                        base_style,
+                    )))
+                    .map_err(|_| "failed to draw stem baseline")?;
+            }
+        }
+    }
+
+    if line_width > 0.0 {
+        let stem_style = ShapeStyle {
+            color: line_color.to_rgba(),
+            filled: false,
+            stroke_width: stroke_width_px(line_width, dpi),
+        };
+        for (&x, &y) in stem.x.iter().zip(stem.y.iter()) {
+            let (p0, p1) = if is_horizontal {
+                (scales.map_xy(bottom, y), scales.map_xy(x, y))
+            } else {
+                (scales.map_xy(x, bottom), scales.map_xy(x, y))
+            };
+            if let Some(((c0x, c0y), (c1x, c1y))) = clip_segment(p0.0, p0.1, p1.0, p1.1, clip) {
+                match line_dash {
+                    LineDash::Solid => {
+                        chart
+                            .draw_series(std::iter::once(PathElement::new(
+                                vec![(c0x, c0y), (c1x, c1y)],
+                                stem_style,
+                            )))
+                            .map_err(|_| "failed to draw stem line")?;
+                    }
+                    LineDash::Dashed | LineDash::DashDot | LineDash::Dotted => {
+                        let line_series = LineSeries {
+                            x: vec![if is_horizontal { bottom } else { x }, x],
+                            y: vec![if is_horizontal { y } else { bottom }, y],
+                            label: String::new(),
+                            color: line_color,
+                            dash: line_dash,
+                            marker: Marker::None,
+                            width: line_width,
+                        };
+                        draw_curve(chart, &line_series, scales, dpi, clip)?;
+                    }
+                }
+            }
+        }
+    }
+
+    if marker != Marker::None && marker_size > 0.0 {
+        let m_radius = (marker_size.sqrt() * dpi as f64 / 72.0 / 2.0).round().max(1.0) as i32;
+        let m_fill = ShapeStyle {
+            color: marker_color.to_rgba(),
+            filled: true,
+            stroke_width: 0,
+        };
+        for (&x, &y) in stem.x.iter().zip(stem.y.iter()) {
+            let (mx, my) = scales.map_xy(x, y);
+            if point_in_clip(mx, my, clip) {
+                draw_marker_shape(chart, mx, my, m_radius, m_fill, marker)?;
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn draw_stackplot<DB: DrawingBackend>(
+    chart: &mut Chart<'_, DB>,
+    stack: &StackplotSeries,
+    scales: PanelScales,
+    dpi: u32,
+) -> Result<(), &'static str> {
+    if stack.x.is_empty() || stack.ys.is_empty() {
+        return Ok(());
+    }
+    let n = stack.x.len();
+    let default_colors = crate::color::Color::TABLEAU;
+    let custom_colors = stack.style.colors_value();
+    let alpha = stack.style.alpha_value();
+    let baseline = stack.style.baseline_value();
+
+    let mut current_bottom = vec![baseline; n];
+    for (layer_idx, layer_y) in stack.ys.iter().enumerate() {
+        if layer_y.len() != n {
+            continue;
+        }
+        let current_top: Vec<f64> = current_bottom
+            .iter()
+            .zip(layer_y.iter())
+            .map(|(&b, &y)| b + y)
+            .collect();
+
+        let color = if !custom_colors.is_empty() {
+            custom_colors[layer_idx % custom_colors.len()]
+        } else {
+            default_colors[layer_idx % default_colors.len()]
+        };
+
+        let fill_series = FillBetweenSeries {
+            x: stack.x.clone(),
+            y1: current_bottom.clone(),
+            y2: current_top.clone(),
+            color,
+            alpha,
+            label: String::new(),
+        };
+        draw_fill_between(chart, &fill_series, scales, dpi)?;
+        current_bottom = current_top;
+    }
+    Ok(())
+}
+
+fn draw_stairs<DB: DrawingBackend>(
+    chart: &mut Chart<'_, DB>,
+    stairs: &StairsSeries,
+    scales: PanelScales,
+    dpi: u32,
+    clip: ClipRect,
+) -> Result<(), &'static str> {
+    if stairs.values.is_empty() {
+        return Ok(());
+    }
+    let default_edges: Vec<f64>;
+    let edges: &[f64] = match stairs.edges.as_deref() {
+        Some(e) if e.len() == stairs.values.len() + 1 => e,
+        _ => {
+            default_edges = (0..=stairs.values.len()).map(|i| i as f64).collect();
+            &default_edges
+        }
+    };
+
+    let is_horizontal = stairs.style.horizontal_value();
+    let baseline = stairs.style.baseline_value();
+    let stroke_color = stairs.style.color_value();
+    let stroke_width = stairs.style.width_value();
+    let do_fill = stairs.style.fill_value();
+    let fill_color = stairs
+        .style
+        .fill_color_value()
+        .unwrap_or(stroke_color)
+        .with_alpha(stairs.style.fill_alpha_value());
+
+    let mut step_pts = Vec::with_capacity(stairs.values.len() * 2);
+    for i in 0..stairs.values.len() {
+        let v = stairs.values[i];
+        let e0 = edges[i];
+        let e1 = edges[i + 1];
+        if is_horizontal {
+            step_pts.push((v, e0));
+            step_pts.push((v, e1));
+        } else {
+            step_pts.push((e0, v));
+            step_pts.push((e1, v));
+        }
+    }
+
+    if do_fill {
+        let mut poly = Vec::with_capacity(step_pts.len() + 2);
+        for &(px, py) in &step_pts {
+            poly.push(scales.map_xy(px, py));
+        }
+        if is_horizontal {
+            poly.push(scales.map_xy(baseline, *edges.last().unwrap()));
+            poly.push(scales.map_xy(baseline, *edges.first().unwrap()));
+        } else {
+            poly.push(scales.map_xy(*edges.last().unwrap(), baseline));
+            poly.push(scales.map_xy(*edges.first().unwrap(), baseline));
+        }
+        poly.push(poly[0]);
+        chart
+            .draw_series(std::iter::once(PathElement::new(
+                poly,
+                ShapeStyle {
+                    color: fill_color.to_rgba(),
+                    filled: true,
+                    stroke_width: 0,
+                },
+            )))
+            .map_err(|_| "failed to draw stairs fill")?;
+    }
+
+    if stroke_width > 0.0 {
+        let line_series = LineSeries {
+            x: step_pts.iter().map(|p| p.0).collect(),
+            y: step_pts.iter().map(|p| p.1).collect(),
+            label: String::new(),
+            color: stroke_color,
+            dash: stairs.style.dash_value(),
+            marker: Marker::None,
+            width: stroke_width,
+        };
+        draw_curve(chart, &line_series, scales, dpi, clip)?;
+    }
+
+    Ok(())
+}
+
+fn draw_quiver<DB: DrawingBackend>(
+    chart: &mut Chart<'_, DB>,
+    quiver: &QuiverSeries,
+    scales: PanelScales,
+    dpi: u32,
+    clip: ClipRect,
+) -> Result<(), &'static str> {
+    let scale = quiver.style.scale_value();
+    let color = quiver
+        .style
+        .color_value()
+        .with_alpha(quiver.style.alpha_value());
+    let width = quiver.style.width_value();
+    let arrow_size = quiver.style.arrow_size_value();
+
+    let shaft_style = ShapeStyle {
+        color: color.to_rgba(),
+        filled: false,
+        stroke_width: stroke_width_px(width, dpi),
+    };
+    let head_style = ShapeStyle {
+        color: color.to_rgba(),
+        filled: true,
+        stroke_width: 0,
+    };
+
+    let n = quiver
+        .x
+        .len()
+        .min(quiver.y.len())
+        .min(quiver.u.len())
+        .min(quiver.v.len());
+    let screen = chart.plotting_area().use_screen_coord();
+
+    for i in 0..n {
+        let x = quiver.x[i];
+        let y = quiver.y[i];
+        let u = quiver.u[i] * scale;
+        let v = quiver.v[i] * scale;
+
+        if !scales.x.usable(x)
+            || !scales.y.usable(y)
+            || !scales.x.usable(x + u)
+            || !scales.y.usable(y + v)
+        {
+            continue;
+        }
+
+        let p_start = scales.map_xy(x, y);
+        let p_end = scales.map_xy(x + u, y + v);
+
+        if !point_in_clip(p_start.0, p_start.1, clip) && !point_in_clip(p_end.0, p_end.1, clip) {
+            continue;
+        }
+
+        let s0 = chart.backend_coord(&p_start);
+        let s1 = chart.backend_coord(&p_end);
+
+        let dx = (s1.0 - s0.0) as f64;
+        let dy = (s1.1 - s0.1) as f64;
+        let dist = (dx * dx + dy * dy).sqrt();
+
+        if dist < 1.0 {
+            continue;
+        }
+
+        let ux = dx / dist;
+        let uy = dy / dist;
+        let head_len = (arrow_size * dpi as f64 / 72.0).min(dist * 0.6);
+        let head_w = head_len * 0.5;
+
+        let base_x = s1.0 as f64 - ux * head_len;
+        let base_y = s1.1 as f64 - uy * head_len;
+
+        let w1_x = (base_x - uy * head_w).round() as i32;
+        let w1_y = (base_y + ux * head_w).round() as i32;
+        let w2_x = (base_x + uy * head_w).round() as i32;
+        let w2_y = (base_y - ux * head_w).round() as i32;
+
+        screen
+            .draw(&PathElement::new(
+                vec![(s0.0, s0.1), (base_x.round() as i32, base_y.round() as i32)],
+                shaft_style,
+            ))
+            .map_err(|_| "failed to draw quiver shaft")?;
+
+        screen
+            .draw(&Polygon::new(
+                vec![(s1.0, s1.1), (w1_x, w1_y), (w2_x, w2_y)],
+                head_style,
+            ))
+            .map_err(|_| "failed to draw quiver arrowhead")?;
+    }
+
+    Ok(())
+}
+
+fn draw_pie<DB: DrawingBackend>(
+    chart: &mut Chart<'_, DB>,
+    pie: &PieSeries,
+    scales: PanelScales,
+    tick_fontsize_px: f64,
+    dpi: u32,
+) -> Result<(), &'static str> {
+    if pie.values.is_empty() {
+        return Ok(());
+    }
+    let total: f64 = pie.values.iter().copied().filter(|v| *v > 0.0).sum();
+    if total <= 0.0 {
+        return Ok(());
+    }
+
+    let default_colors = crate::color::Color::TABLEAU;
+    let custom_colors = pie.style.colors_value();
+    let edge_color = pie.style.edge_color_value();
+    let edge_width = pie.style.edge_width_value();
+    let r = pie.style.radius_value();
+    let explode = pie.style.explode_value();
+    let labels = pie.style.labels_value();
+    let autopct = pie.style.autopct_value();
+
+    let mut current_deg = pie.style.start_angle_value();
+
+    for (i, &val) in pie.values.iter().enumerate() {
+        if val <= 0.0 {
+            continue;
+        }
+        let frac = val / total;
+        let span_deg = frac * 360.0;
+        let mid_deg = current_deg + span_deg / 2.0;
+        let mid_rad = mid_deg.to_radians();
+
+        let exp = explode.get(i).copied().unwrap_or(0.0);
+        let center_x = exp * mid_rad.cos();
+        let center_y = exp * mid_rad.sin();
+
+        let n_steps = (span_deg.abs() / 2.0).ceil().max(8.0) as usize;
+        let mut wedge_pts = Vec::with_capacity(n_steps + 2);
+        wedge_pts.push(scales.map_xy(center_x, center_y));
+        for step in 0..=n_steps {
+            let deg = current_deg + (span_deg * step as f64 / n_steps as f64);
+            let rad = deg.to_radians();
+            let px = center_x + r * rad.cos();
+            let py = center_y + r * rad.sin();
+            wedge_pts.push(scales.map_xy(px, py));
+        }
+        wedge_pts.push(scales.map_xy(center_x, center_y));
+
+        let color = if !custom_colors.is_empty() {
+            custom_colors[i % custom_colors.len()]
+        } else {
+            default_colors[i % default_colors.len()]
+        };
+
+        chart
+            .draw_series(std::iter::once(Polygon::new(
+                wedge_pts.clone(),
+                ShapeStyle {
+                    color: color.to_rgba(),
+                    filled: true,
+                    stroke_width: 0,
+                },
+            )))
+            .map_err(|_| "failed to draw pie slice")?;
+
+        if let Some(ec) = edge_color {
+            if edge_width > 0.0 {
+                chart
+                    .draw_series(std::iter::once(PathElement::new(
+                        wedge_pts,
+                        ShapeStyle {
+                            color: ec.to_rgba(),
+                            filled: false,
+                            stroke_width: stroke_width_px(edge_width, dpi),
+                        },
+                    )))
+                    .map_err(|_| "failed to draw pie edge")?;
+            }
+        }
+
+        if let Some(format_str) = autopct {
+            let pct_val = frac * 100.0;
+            let text = if format_str.contains("%1.1f%%")
+                || format_str == "%.1f%%"
+                || format_str == "%1.1f"
+            {
+                format!("{pct_val:.1}%")
+            } else if format_str.contains("%1.0f%%")
+                || format_str == "%.0f%%"
+                || format_str == "%d%%"
+            {
+                format!("{pct_val:.0}%")
+            } else {
+                format!("{pct_val:.1}%")
+            };
+            let text_r = r * 0.6;
+            let tx = center_x + text_r * mid_rad.cos();
+            let ty = center_y + text_r * mid_rad.sin();
+            let (mx, my) = scales.map_xy(tx, ty);
+            let font = (MPL_FONT, (tick_fontsize_px * 0.9) as i32).into_font();
+            let text_style = TextStyle::from(font)
+                .pos(Pos::new(HPos::Center, VPos::Center))
+                .color(&RGBColor(0, 0, 0));
+            let screen = chart.plotting_area().use_screen_coord();
+            let p = chart.backend_coord(&(mx, my));
+            let _ = screen.draw_text(&text, &text_style, p);
+        }
+
+        if let Some(label) = labels.get(i) {
+            if !label.is_empty() {
+                let text_r = r * 1.1;
+                let tx = center_x + text_r * mid_rad.cos();
+                let ty = center_y + text_r * mid_rad.sin();
+                let (mx, my) = scales.map_xy(tx, ty);
+                let font = (MPL_FONT, tick_fontsize_px as i32).into_font();
+                let h_pos = if mid_rad.cos() > 0.1 {
+                    HPos::Left
+                } else if mid_rad.cos() < -0.1 {
+                    HPos::Right
+                } else {
+                    HPos::Center
+                };
+                let text_style = TextStyle::from(font)
+                    .pos(Pos::new(h_pos, VPos::Center))
+                    .color(&RGBColor(0, 0, 0));
+                let screen = chart.plotting_area().use_screen_coord();
+                let p = chart.backend_coord(&(mx, my));
+                let _ = screen.draw_text(label, &text_style, p);
+            }
+        }
+
+        current_deg += span_deg;
+    }
+
+    Ok(())
+}
+
+fn draw_hist2d<DB: DrawingBackend>(
+    chart: &mut Chart<'_, DB>,
+    hist: &Hist2DSeries,
+    scales: PanelScales,
+) -> Result<(), &'static str> {
+    if hist.x.len() != hist.y.len() || hist.x.is_empty() {
+        return Ok(());
+    }
+    let (nx, ny) = hist.style.bins_value();
+    let (x_min, x_max) = hist.style.range_x_value().unwrap_or_else(|| {
+        let min = hist.x.iter().copied().fold(f64::INFINITY, f64::min);
+        let max = hist.x.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+        (min, max)
+    });
+    let (y_min, y_max) = hist.style.range_y_value().unwrap_or_else(|| {
+        let min = hist.y.iter().copied().fold(f64::INFINITY, f64::min);
+        let max = hist.y.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+        (min, max)
+    });
+
+    let dx = (x_max - x_min) / nx as f64;
+    let dy = (y_max - y_min) / ny as f64;
+    if dx <= 0.0 || dy <= 0.0 {
+        return Ok(());
+    }
+
+    let mut counts = vec![vec![0.0; ny]; nx];
+    let mut total = 0.0;
+    for (&x, &y) in hist.x.iter().zip(hist.y.iter()) {
+        if x < x_min || x > x_max || y < y_min || y > y_max {
+            continue;
+        }
+        let mut ix = ((x - x_min) / dx).floor() as usize;
+        if ix >= nx {
+            ix = nx - 1;
+        }
+        let mut iy = ((y - y_min) / dy).floor() as usize;
+        if iy >= ny {
+            iy = ny - 1;
+        }
+        counts[ix][iy] += 1.0;
+        total += 1.0;
+    }
+
+    if hist.style.density_value() && total > 0.0 {
+        let area = dx * dy;
+        for col in &mut counts {
+            for c in col {
+                *c /= total * area;
+            }
+        }
+    }
+
+    let mut max_count = 0.0;
+    for col in &counts {
+        for &c in col {
+            if c > max_count {
+                max_count = c;
+            }
+        }
+    }
+    if max_count <= 0.0 {
+        return Ok(());
+    }
+
+    let cmap = hist.style.colormap_value();
+    for ix in 0..nx {
+        let x0 = x_min + ix as f64 * dx;
+        let x1 = x0 + dx;
+        for iy in 0..ny {
+            let y0 = y_min + iy as f64 * dy;
+            let y1 = y0 + dy;
+            let c: f64 = counts[ix][iy];
+            if c > 0.0 {
+                let t: f64 = (c / max_count).clamp(0.0, 1.0);
+                let color = cmap.sample(t);
+                let ax0 = scales.x.data_to_axis(x0);
+                let ax1 = scales.x.data_to_axis(x1);
+                let ay0 = scales.y.data_to_axis(y0);
+                let ay1 = scales.y.data_to_axis(y1);
+                let left = ax0.min(ax1);
+                let right = ax0.max(ax1);
+                let bottom = ay0.min(ay1);
+                let top = ay0.max(ay1);
+                chart
+                    .draw_series(std::iter::once(Rectangle::new(
+                        [(left, bottom), (right, top)],
+                        ShapeStyle {
+                            color: color.to_rgba(),
+                            filled: true,
+                            stroke_width: 0,
+                        },
+                    )))
+                    .map_err(|_| "failed to draw hist2d cell")?;
+            }
+        }
+    }
     Ok(())
 }
 
@@ -745,6 +1556,7 @@ fn draw_text<DB: DrawingBackend>(
     text: &TextSeries,
     scales: PanelScales,
     tick_fontsize_px: f64,
+    dpi: u32,
 ) -> Result<(), &'static str> {
     if !scales.x.usable(text.x) || !scales.y.usable(text.y) {
         return Ok(());
@@ -768,7 +1580,64 @@ fn draw_text<DB: DrawingBackend>(
     };
     let rgb = text.color.to_rgb();
     let rgba = rgb.to_rgba();
-    let style = TextStyle::from((MPL_FONT, size.round() as i32).into_font())
+    let font_desc = (MPL_FONT, size.round() as i32).into_font();
+
+    if let Some(bbox) = text.bbox {
+        let (text_w, text_h) = match font_desc.layout_box(&text.text) {
+            Ok(((min_x, min_y), (max_x, max_y))) => {
+                ((max_x - min_x).max(1), (max_y - min_y).max(1))
+            }
+            Err(_) => (
+                size.round() as i32 * text.text.chars().count().max(1) as i32 / 2,
+                size.round() as i32,
+            ),
+        };
+        let p = chart.backend_coord(&(x, y));
+        let x_left = match h_pos {
+            HPos::Left => p.0,
+            HPos::Center => p.0 - text_w / 2,
+            HPos::Right => p.0 - text_w,
+        };
+        let y_top = match v_pos {
+            VPos::Top => p.1,
+            VPos::Center => p.1 - text_h / 2,
+            VPos::Bottom => p.1 - text_h,
+        };
+        let pad_px = (bbox.pad_value() * dpi as f64 / 72.0).round() as i32;
+        let x0 = x_left - pad_px;
+        let y0 = y_top - pad_px;
+        let x1 = x_left + text_w + pad_px;
+        let y1 = y_top + text_h + pad_px;
+
+        let screen = chart.plotting_area().use_screen_coord();
+        if let Some(fc) = bbox.face_color_value() {
+            let fc_rgba = fc.with_alpha(bbox.alpha_value()).to_rgba();
+            let rect_style = ShapeStyle {
+                color: fc_rgba,
+                filled: true,
+                stroke_width: 0,
+            };
+            screen
+                .draw(&Rectangle::new([(x0, y0), (x1, y1)], rect_style))
+                .map_err(|_| "failed to draw text bbox fill")?;
+        }
+        if let Some(ec) = bbox.edge_color_value() {
+            if bbox.edge_width_value() > 0.0 {
+                let ec_rgba = ec.with_alpha(bbox.alpha_value()).to_rgba();
+                let edge_w = stroke_width_px(bbox.edge_width_value(), dpi);
+                let rect_style = ShapeStyle {
+                    color: ec_rgba,
+                    filled: false,
+                    stroke_width: edge_w,
+                };
+                screen
+                    .draw(&Rectangle::new([(x0, y0), (x1, y1)], rect_style))
+                    .map_err(|_| "failed to draw text bbox edge")?;
+            }
+        }
+    }
+
+    let style = TextStyle::from(font_desc)
         .color(&rgba)
         .pos(Pos::new(h_pos, v_pos));
     chart
@@ -856,8 +1725,9 @@ fn draw_annotation<DB: DrawingBackend>(
         ha: t_style.ha_value(),
         va: t_style.va_value(),
         rotation: t_style.rotation_value(),
+        bbox: t_style.bbox_value(),
     };
-    draw_text(chart, &text_series, scales, tick_fontsize_px)?;
+    draw_text(chart, &text_series, scales, tick_fontsize_px, dpi)?;
     Ok(())
 }
 
@@ -1335,22 +2205,18 @@ fn draw_scatter<DB: DrawingBackend>(
     if scatter.x.len() != scatter.y.len() || scatter.x.is_empty() {
         return Ok(());
     }
-    let radius = (scatter.size.sqrt() * dpi as f64 / 72.0 / 2.0)
+    let default_radius = (scatter.size.sqrt() * dpi as f64 / 72.0 / 2.0)
         .round()
         .max(1.0) as i32;
-    let fill_style = ShapeStyle {
-        color: scatter.color.to_rgba(),
-        filled: true,
-        stroke_width: 0,
-    };
-    let edge_color = scatter.edge_color.unwrap_or(scatter.color);
-    let edge_style = ShapeStyle {
-        color: edge_color.to_rgba(),
-        filled: false,
-        stroke_width: stroke_width_px(scatter.edge_width, dpi),
-    };
 
-    for (&x, &y) in scatter.x.iter().zip(scatter.y.iter()) {
+    let vmin = scatter.values.as_ref().and_then(|vals| {
+        vals.iter().copied().filter(|v| v.is_finite()).reduce(f64::min)
+    });
+    let vmax = scatter.values.as_ref().and_then(|vals| {
+        vals.iter().copied().filter(|v| v.is_finite()).reduce(f64::max)
+    });
+
+    for (i, (&x, &y)) in scatter.x.iter().zip(scatter.y.iter()).enumerate() {
         if !scales.x.usable(x) || !scales.y.usable(y) {
             continue;
         }
@@ -1358,8 +2224,51 @@ fn draw_scatter<DB: DrawingBackend>(
         if !point_in_clip(mx, my, clip) {
             continue;
         }
+
+        let radius = if let Some(ref sizes) = scatter.sizes {
+            if let Some(&s) = sizes.get(i) {
+                (s.sqrt() * dpi as f64 / 72.0 / 2.0).round().max(1.0) as i32
+            } else {
+                default_radius
+            }
+        } else {
+            default_radius
+        };
+
+        let color = if let (Some(ref vals), Some(cmap), Some(min_v), Some(max_v)) =
+            (&scatter.values, scatter.colormap, vmin, vmax)
+        {
+            if let Some(&val) = vals.get(i) {
+                let t = if max_v > min_v {
+                    ((val - min_v) / (max_v - min_v)).clamp(0.0, 1.0)
+                } else {
+                    0.5
+                };
+                cmap.sample(t).with_alpha(scatter.alpha)
+            } else {
+                scatter.color.with_alpha(scatter.alpha)
+            }
+        } else {
+            scatter.color.with_alpha(scatter.alpha)
+        };
+
+        let fill_style = ShapeStyle {
+            color: color.to_rgba(),
+            filled: true,
+            stroke_width: 0,
+        };
         draw_marker_shape(chart, mx, my, radius, fill_style, scatter.marker)?;
+
         if scatter.edge_width > 0.0 {
+            let edge_color = scatter
+                .edge_color
+                .unwrap_or(color)
+                .with_alpha(scatter.alpha);
+            let edge_style = ShapeStyle {
+                color: edge_color.to_rgba(),
+                filled: false,
+                stroke_width: stroke_width_px(scatter.edge_width, dpi),
+            };
             draw_marker_shape(chart, mx, my, radius, edge_style, scatter.marker)?;
         }
     }
@@ -1564,21 +2473,28 @@ fn draw_barh<DB: DrawingBackend>(
     if barh.y.len() != barh.widths.len() || barh.y.is_empty() {
         return Ok(());
     }
-    let stroke_width = stroke_width_px(0.8, dpi);
-    let edge = RGBColor(0, 0, 0);
+    let default_stroke_width = stroke_width_px(0.8, dpi);
+    let default_edge = RGBColor(0, 0, 0);
     let half_h = barh.height / 2.0;
+    let base_color = barh.color.with_alpha(barh.alpha);
+    let edge_color = barh.edge_color.map(|c| c.with_alpha(barh.alpha));
 
-    for (y_val, width) in barh.y.iter().zip(barh.widths.iter()) {
-        if !scales.y.usable(*y_val - half_h) || !scales.y.usable(*y_val + half_h) {
+    for (i, (&y_val, &width)) in barh.y.iter().zip(barh.widths.iter()).enumerate() {
+        if !scales.y.usable(y_val - half_h) || !scales.y.usable(y_val + half_h) {
             continue;
         }
+        let left_val = barh
+            .left
+            .as_ref()
+            .and_then(|l| l.get(i).copied())
+            .unwrap_or(barh.baseline);
         let (y0, y1) = (
-            scales.y.data_to_axis(*y_val - half_h),
-            scales.y.data_to_axis(*y_val + half_h),
+            scales.y.data_to_axis(y_val - half_h),
+            scales.y.data_to_axis(y_val + half_h),
         );
         let (x0, x1) = (
-            scales.x.data_to_axis(barh.baseline),
-            scales.x.data_to_axis(barh.baseline + *width),
+            scales.x.data_to_axis(left_val),
+            scales.x.data_to_axis(left_val + width),
         );
         let left = x0.min(x1);
         let right = x0.max(x1);
@@ -1589,23 +2505,93 @@ fn draw_barh<DB: DrawingBackend>(
             .draw_series(std::iter::once(Rectangle::new(
                 [(left, bottom), (right, top)],
                 ShapeStyle {
-                    color: barh.color.to_rgba(),
+                    color: base_color.to_rgba(),
                     filled: true,
                     stroke_width: 0,
                 },
             )))
             .map_err(|_| "failed to draw barh rect")?;
 
-        chart
-            .draw_series(std::iter::once(Rectangle::new(
-                [(left, bottom), (right, top)],
+        let (edge_style, should_draw_edge) = if let Some(ec) = edge_color {
+            (
                 ShapeStyle {
-                    color: edge.to_rgba(),
+                    color: ec.to_rgba(),
                     filled: false,
-                    stroke_width,
+                    stroke_width: stroke_width_px(barh.edge_width, dpi),
                 },
-            )))
-            .map_err(|_| "failed to draw barh border")?;
+                barh.edge_width > 0.0,
+            )
+        } else {
+            (
+                ShapeStyle {
+                    color: default_edge.to_rgba(),
+                    filled: false,
+                    stroke_width: default_stroke_width,
+                },
+                true,
+            )
+        };
+
+        if should_draw_edge {
+            chart
+                .draw_series(std::iter::once(Rectangle::new(
+                    [(left, bottom), (right, top)],
+                    edge_style,
+                )))
+                .map_err(|_| "failed to draw barh border")?;
+        }
+
+        // Draw horizontal error bars if xerr is present
+        if let Some(ref xerr) = barh.xerr {
+            if let Some(&err_right) = xerr.get(i) {
+                let err_left = barh
+                    .xerr_lower
+                    .as_ref()
+                    .and_then(|xl| xl.get(i).copied())
+                    .unwrap_or(err_right);
+                let center_x = left_val + width;
+                let x_right_val = center_x + err_right;
+                let x_left_val = center_x - err_left;
+                let x_right_px = scales.x.data_to_axis(x_right_val);
+                let x_left_px = scales.x.data_to_axis(x_left_val);
+                let y_px = scales.y.data_to_axis(y_val);
+
+                let e_color = edge_color.unwrap_or(base_color);
+                let err_style = ShapeStyle {
+                    color: e_color.to_rgba(),
+                    filled: false,
+                    stroke_width: stroke_width_px(1.5, dpi),
+                };
+                let cap_style = ShapeStyle {
+                    color: e_color.to_rgba(),
+                    filled: false,
+                    stroke_width: stroke_width_px(1.5, dpi),
+                };
+                let cap_hw = (barh.capsize * dpi as f64 / 72.0 / 2.0).round().max(1.0) as i32;
+
+                chart
+                    .draw_series(std::iter::once(PathElement::new(
+                        vec![(x_left_px, y_px), (x_right_px, y_px)],
+                        err_style,
+                    )))
+                    .map_err(|_| "failed to draw barh errorbar stem")?;
+
+                if barh.capsize > 0.0 {
+                    chart
+                        .draw_series(std::iter::once(
+                            EmptyElement::at((x_right_px, y_px))
+                                + PathElement::new(vec![(0, -cap_hw), (0, cap_hw)], cap_style),
+                        ))
+                        .map_err(|_| "failed to draw barh errorbar cap")?;
+                    chart
+                        .draw_series(std::iter::once(
+                            EmptyElement::at((x_left_px, y_px))
+                                + PathElement::new(vec![(0, -cap_hw), (0, cap_hw)], cap_style),
+                        ))
+                        .map_err(|_| "failed to draw barh errorbar cap")?;
+                }
+            }
+        }
     }
     Ok(())
 }
@@ -1707,6 +2693,235 @@ fn draw_axvspan<DB: DrawingBackend>(
             },
         )))
         .map_err(|_| "failed to draw axvspan")?;
+    Ok(())
+}
+
+fn draw_axline<DB: DrawingBackend>(
+    chart: &mut Chart<'_, DB>,
+    line: &AxLineSeries,
+    scales: PanelScales,
+    dpi: u32,
+    clip: ClipRect,
+) -> Result<(), &'static str> {
+    let (x1, y1) = line.p1;
+    if !scales.x.usable(x1) || !scales.y.usable(y1) {
+        return Ok(());
+    }
+    let (ax1, ay1) = scales.map_xy(x1, y1);
+
+    let (p_start, p_end) = if let Some((x2, y2)) = line.p2 {
+        if !scales.x.usable(x2) || !scales.y.usable(y2) {
+            return Ok(());
+        }
+        let (ax2, ay2) = scales.map_xy(x2, y2);
+        intersect_axis_box(ax1, ay1, ax2, ay2, clip)
+    } else if let Some(slope) = line.slope {
+        let x2 = x1 + 1.0;
+        let y2 = y1 + slope;
+        if !scales.x.usable(x2) || !scales.y.usable(y2) {
+            return Ok(());
+        }
+        let (ax2, ay2) = scales.map_xy(x2, y2);
+        intersect_axis_box(ax1, ay1, ax2, ay2, clip)
+    } else {
+        return Ok(());
+    };
+
+    let (Some(p0), Some(p1)) = (p_start, p_end) else {
+        return Ok(());
+    };
+
+    let curve = LineSeries {
+        x: vec![p0.0, p1.0],
+        y: vec![p0.1, p1.1],
+        label: line.style.label_value().unwrap_or("").to_string(),
+        color: line.style.color_value(),
+        dash: line.style.dash_value(),
+        marker: Marker::None,
+        width: line.style.width_value(),
+    };
+    draw_curve(chart, &curve, scales, dpi, clip)
+}
+
+fn intersect_axis_box(
+    ax1: f64,
+    ay1: f64,
+    ax2: f64,
+    ay2: f64,
+    clip: ClipRect,
+) -> (Option<(f64, f64)>, Option<(f64, f64)>) {
+    let dx = ax2 - ax1;
+    let dy = ay2 - ay1;
+    if dx.abs() < 1e-12 && dy.abs() < 1e-12 {
+        return (None, None);
+    }
+
+    if dx.abs() < 1e-12 {
+        if ax1 < clip.xmin - 1e-6 || ax1 > clip.xmax + 1e-6 {
+            return (None, None);
+        }
+        return (Some((ax1, clip.ymin)), Some((ax1, clip.ymax)));
+    }
+
+    if dy.abs() < 1e-12 {
+        if ay1 < clip.ymin - 1e-6 || ay1 > clip.ymax + 1e-6 {
+            return (None, None);
+        }
+        return (Some((clip.xmin, ay1)), Some((clip.xmax, ay1)));
+    }
+
+    let mut intersections = Vec::with_capacity(4);
+
+    let t_left = (clip.xmin - ax1) / dx;
+    let y_left = ay1 + t_left * dy;
+    if y_left >= clip.ymin - 1e-6 && y_left <= clip.ymax + 1e-6 {
+        intersections.push((t_left, (clip.xmin, y_left.clamp(clip.ymin, clip.ymax))));
+    }
+
+    let t_right = (clip.xmax - ax1) / dx;
+    let y_right = ay1 + t_right * dy;
+    if y_right >= clip.ymin - 1e-6 && y_right <= clip.ymax + 1e-6 {
+        intersections.push((t_right, (clip.xmax, y_right.clamp(clip.ymin, clip.ymax))));
+    }
+
+    let t_bot = (clip.ymin - ay1) / dy;
+    let x_bot = ax1 + t_bot * dx;
+    if x_bot >= clip.xmin - 1e-6 && x_bot <= clip.xmax + 1e-6 {
+        intersections.push((t_bot, (x_bot.clamp(clip.xmin, clip.xmax), clip.ymin)));
+    }
+
+    let t_top = (clip.ymax - ay1) / dy;
+    let x_top = ax1 + t_top * dx;
+    if x_top >= clip.xmin - 1e-6 && x_top <= clip.xmax + 1e-6 {
+        intersections.push((t_top, (x_top.clamp(clip.xmin, clip.xmax), clip.ymax)));
+    }
+
+    intersections.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+    intersections.dedup_by(|a, b| {
+        (a.1 .0 - b.1 .0).abs() < 1e-5 && (a.1 .1 - b.1 .1).abs() < 1e-5
+    });
+
+    if intersections.len() >= 2 {
+        (
+            Some(intersections.first().unwrap().1),
+            Some(intersections.last().unwrap().1),
+        )
+    } else {
+        (None, None)
+    }
+}
+
+fn draw_hlines<DB: DrawingBackend>(
+    chart: &mut Chart<'_, DB>,
+    lines: &HLinesSeries,
+    scales: PanelScales,
+    dpi: u32,
+    clip: ClipRect,
+) -> Result<(), &'static str> {
+    for i in 0..lines.y.len() {
+        let y = lines.y[i];
+        let x0 = lines.xmin[i];
+        let x1 = lines.xmax[i];
+        if !scales.y.usable(y) || !scales.x.usable(x0) || !scales.x.usable(x1) {
+            continue;
+        }
+        let seg = LineSeries {
+            x: vec![x0, x1],
+            y: vec![y, y],
+            label: String::new(),
+            color: lines.style.color_value(),
+            dash: lines.style.dash_value(),
+            marker: Marker::None,
+            width: lines.style.width_value(),
+        };
+        draw_curve(chart, &seg, scales, dpi, clip)?;
+    }
+    Ok(())
+}
+
+fn draw_vlines<DB: DrawingBackend>(
+    chart: &mut Chart<'_, DB>,
+    lines: &VLinesSeries,
+    scales: PanelScales,
+    dpi: u32,
+    clip: ClipRect,
+) -> Result<(), &'static str> {
+    for i in 0..lines.x.len() {
+        let x = lines.x[i];
+        let y0 = lines.ymin[i];
+        let y1 = lines.ymax[i];
+        if !scales.x.usable(x) || !scales.y.usable(y0) || !scales.y.usable(y1) {
+            continue;
+        }
+        let seg = LineSeries {
+            x: vec![x, x],
+            y: vec![y0, y1],
+            label: String::new(),
+            color: lines.style.color_value(),
+            dash: lines.style.dash_value(),
+            marker: Marker::None,
+            width: lines.style.width_value(),
+        };
+        draw_curve(chart, &seg, scales, dpi, clip)?;
+    }
+    Ok(())
+}
+
+fn draw_eventplot<DB: DrawingBackend>(
+    chart: &mut Chart<'_, DB>,
+    ev: &EventplotSeries,
+    scales: PanelScales,
+    dpi: u32,
+    clip: ClipRect,
+) -> Result<(), &'static str> {
+    let offset = ev.style.lineoffset_value();
+    let half_len = ev.style.linelength_value() / 2.0;
+    let lo = offset - half_len;
+    let hi = offset + half_len;
+    let color = ev.style.color_value().with_alpha(ev.style.alpha_value());
+
+    match ev.style.orientation_value() {
+        EventplotOrientation::Horizontal => {
+            if !scales.y.usable(lo) || !scales.y.usable(hi) {
+                return Ok(());
+            }
+            for &pos in &ev.positions {
+                if !scales.x.usable(pos) {
+                    continue;
+                }
+                let seg = LineSeries {
+                    x: vec![pos, pos],
+                    y: vec![lo, hi],
+                    label: String::new(),
+                    color,
+                    dash: ev.style.dash_value(),
+                    marker: Marker::None,
+                    width: ev.style.linewidth_value(),
+                };
+                draw_curve(chart, &seg, scales, dpi, clip)?;
+            }
+        }
+        EventplotOrientation::Vertical => {
+            if !scales.x.usable(lo) || !scales.x.usable(hi) {
+                return Ok(());
+            }
+            for &pos in &ev.positions {
+                if !scales.y.usable(pos) {
+                    continue;
+                }
+                let seg = LineSeries {
+                    x: vec![lo, hi],
+                    y: vec![pos, pos],
+                    label: String::new(),
+                    color,
+                    dash: ev.style.dash_value(),
+                    marker: Marker::None,
+                    width: ev.style.linewidth_value(),
+                };
+                draw_curve(chart, &seg, scales, dpi, clip)?;
+            }
+        }
+    }
     Ok(())
 }
 
