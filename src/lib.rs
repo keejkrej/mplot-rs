@@ -58,13 +58,15 @@ pub mod prelude {
     pub use crate::figure::{ExportFormat, Figure, FigureBuilder, SaveOptions, Size};
     pub use crate::gridspec::{GridSpec, SubplotSlot};
     pub use crate::panel::{
-        AxesStyle, GridPos, GridStyle, LegendStyle, TickFormat, TickLabelRotation, TickLabels,
+        AxesStyle, GridPos, GridStyle, LegendLoc, LegendStyle, SpinesStyle, TickFormat,
+        TickLabelRotation, TickLabels,
     };
     pub use crate::series::{
-        AnnotationStyle, ArrowStyle, BarHStyle, BarStyle, BoxplotStyle, ContourStyle,
-        ErrorBarStyle, FillBetweenStyle, HistStyle, HorizontalAlignment, ImageStyle, LineDash,
-        LineStyle, Marker, Scale, ScatterStyle, Series, StepStyle, StepWhere, TextStyle,
-        VerticalAlignment, ViolinStyle,
+        AnnotationStyle, ArrowStyle, BarHStyle, BarStyle, BboxStyle, BoxplotStyle, ContourStyle,
+        ErrorBarStyle, EventplotOrientation, EventplotStyle, FillBetweenStyle, Hist2DStyle,
+        HistStyle, HorizontalAlignment, ImageStyle, LineDash, LineStyle, Marker, PieStyle,
+        QuiverStyle, Scale, ScatterStyle, Series, StackplotStyle, StairsStyle, StemStyle,
+        StepStyle, StepWhere, TextStyle, VerticalAlignment, ViolinStyle,
     };
 }
 

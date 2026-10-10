@@ -5,6 +5,7 @@ use crate::render::model::{CompiledPanel, CompiledSeries};
 use crate::render::mpl_style::{MPL_XMARGIN, MPL_YMARGIN};
 use crate::render::scene::box_positions;
 use crate::scale::AxisScale;
+use crate::series::EventplotOrientation;
 use crate::ticker::{
     format_linear, format_log_axis_coord, format_log_data, format_scientific, linear_ticks,
     log_ticks_data,
@@ -148,16 +149,39 @@ pub fn data_bounds(panel: &CompiledPanel) -> DataBounds {
             }
             CompiledSeries::Bar(bar) => {
                 let half = bar.width / 2.0;
-                for (x, height) in bar.x.iter().zip(bar.heights.iter()) {
-                    xmin = xmin.min(*x - half);
-                    xmax = xmax.max(*x + half);
-                    if y_scale.usable(bar.baseline) {
-                        ymin = ymin.min(bar.baseline);
-                        ymax = ymax.max(bar.baseline);
+                for (i, (&x, &height)) in bar.x.iter().zip(bar.heights.iter()).enumerate() {
+                    xmin = xmin.min(x - half);
+                    xmax = xmax.max(x + half);
+                    let bot = bar
+                        .bottom
+                        .as_ref()
+                        .and_then(|b| b.get(i))
+                        .copied()
+                        .unwrap_or(bar.baseline);
+                    let top = bot + height;
+                    let yerr_val = bar.yerr.as_ref().and_then(|e| e.get(i)).copied().unwrap_or(0.0);
+                    let yerr_lo = bar
+                        .yerr_lower
+                        .as_ref()
+                        .and_then(|e| e.get(i))
+                        .copied()
+                        .unwrap_or(yerr_val);
+
+                    if y_scale.usable(bot) {
+                        ymin = ymin.min(bot);
+                        ymax = ymax.max(bot);
                     }
-                    if y_scale.usable(*height) {
-                        ymin = ymin.min(*height);
-                        ymax = ymax.max(*height);
+                    if y_scale.usable(top) {
+                        ymin = ymin.min(top);
+                        ymax = ymax.max(top);
+                    }
+                    if yerr_val > 0.0 || yerr_lo > 0.0 {
+                        if y_scale.usable(top - yerr_lo) {
+                            ymin = ymin.min(top - yerr_lo);
+                        }
+                        if y_scale.usable(top + yerr_val) {
+                            ymax = ymax.max(top + yerr_val);
+                        }
                     }
                 }
             }
@@ -290,17 +314,192 @@ pub fn data_bounds(panel: &CompiledPanel) -> DataBounds {
             }
             CompiledSeries::BarH(barh) => {
                 let half = barh.height / 2.0;
-                for (y, width) in barh.y.iter().zip(barh.widths.iter()) {
-                    ymin = ymin.min(*y - half);
-                    ymax = ymax.max(*y + half);
-                    if x_scale.usable(barh.baseline) {
-                        xmin = xmin.min(barh.baseline);
-                        xmax = xmax.max(barh.baseline);
+                for (i, (&y, &width)) in barh.y.iter().zip(barh.widths.iter()).enumerate() {
+                    ymin = ymin.min(y - half);
+                    ymax = ymax.max(y + half);
+                    let left = barh
+                        .left
+                        .as_ref()
+                        .and_then(|l| l.get(i))
+                        .copied()
+                        .unwrap_or(barh.baseline);
+                    let right = left + width;
+                    let xerr_val = barh.xerr.as_ref().and_then(|e| e.get(i)).copied().unwrap_or(0.0);
+                    let xerr_lo = barh
+                        .xerr_lower
+                        .as_ref()
+                        .and_then(|e| e.get(i))
+                        .copied()
+                        .unwrap_or(xerr_val);
+
+                    if x_scale.usable(left) {
+                        xmin = xmin.min(left);
+                        xmax = xmax.max(left);
                     }
-                    let right = barh.baseline + *width;
                     if x_scale.usable(right) {
                         xmin = xmin.min(right);
                         xmax = xmax.max(right);
+                    }
+                    if xerr_val > 0.0 || xerr_lo > 0.0 {
+                        if x_scale.usable(right - xerr_lo) {
+                            xmin = xmin.min(right - xerr_lo);
+                        }
+                        if x_scale.usable(right + xerr_val) {
+                            xmax = xmax.max(right + xerr_val);
+                        }
+                    }
+                }
+            }
+            CompiledSeries::FillBetweenX(fill) => {
+                for (&y, &x1) in fill.y.iter().zip(fill.x1.iter()) {
+                    if y_scale.usable(y) {
+                        ymin = ymin.min(y);
+                        ymax = ymax.max(y);
+                    }
+                    if x_scale.usable(x1) {
+                        xmin = xmin.min(x1);
+                        xmax = xmax.max(x1);
+                    }
+                }
+                for &x2 in &fill.x2 {
+                    if x_scale.usable(x2) {
+                        xmin = xmin.min(x2);
+                        xmax = xmax.max(x2);
+                    }
+                }
+            }
+            CompiledSeries::Stem(stem) => {
+                if stem.style.horizontal_value() {
+                    for (&x, &y) in stem.x.iter().zip(stem.y.iter()) {
+                        if y_scale.usable(y) {
+                            ymin = ymin.min(y);
+                            ymax = ymax.max(y);
+                        }
+                        if x_scale.usable(x) {
+                            xmin = xmin.min(x);
+                            xmax = xmax.max(x);
+                        }
+                    }
+                    let base = stem.style.bottom_value();
+                    if x_scale.usable(base) {
+                        xmin = xmin.min(base);
+                        xmax = xmax.max(base);
+                    }
+                } else {
+                    for (&x, &y) in stem.x.iter().zip(stem.y.iter()) {
+                        if x_scale.usable(x) {
+                            xmin = xmin.min(x);
+                            xmax = xmax.max(x);
+                        }
+                        if y_scale.usable(y) {
+                            ymin = ymin.min(y);
+                            ymax = ymax.max(y);
+                        }
+                    }
+                    let base = stem.style.bottom_value();
+                    if y_scale.usable(base) {
+                        ymin = ymin.min(base);
+                        ymax = ymax.max(base);
+                    }
+                }
+            }
+            CompiledSeries::Stackplot(stack) => {
+                for &x in &stack.x {
+                    if x_scale.usable(x) {
+                        xmin = xmin.min(x);
+                        xmax = xmax.max(x);
+                    }
+                }
+                let base = stack.style.baseline_value();
+                if y_scale.usable(base) {
+                    ymin = ymin.min(base);
+                    ymax = ymax.max(base);
+                }
+                let n_points = stack.x.len();
+                let mut cum = vec![base; n_points];
+                for layer in &stack.ys {
+                    for (i, val) in layer.iter().enumerate() {
+                        if i < n_points {
+                            cum[i] += val;
+                            if y_scale.usable(cum[i]) {
+                                ymin = ymin.min(cum[i]);
+                                ymax = ymax.max(cum[i]);
+                            }
+                        }
+                    }
+                }
+            }
+            CompiledSeries::Stairs(stairs) => {
+                let default_edges: Vec<f64> = (0..=stairs.values.len()).map(|i| i as f64).collect();
+                let edges = stairs.edges.as_deref().unwrap_or(&default_edges);
+                for &e in edges {
+                    if x_scale.usable(e) {
+                        xmin = xmin.min(e);
+                        xmax = xmax.max(e);
+                    }
+                }
+                for &v in &stairs.values {
+                    if y_scale.usable(v) {
+                        ymin = ymin.min(v);
+                        ymax = ymax.max(v);
+                    }
+                }
+                if stairs.style.fill_value() && y_scale.usable(stairs.style.baseline_value()) {
+                    ymin = ymin.min(stairs.style.baseline_value());
+                    ymax = ymax.max(stairs.style.baseline_value());
+                }
+            }
+            CompiledSeries::Quiver(quiver) => {
+                let s = quiver.style.scale_value();
+                for (i, (&x, &y)) in quiver.x.iter().zip(quiver.y.iter()).enumerate() {
+                    let u = quiver.u.get(i).copied().unwrap_or(0.0) * s;
+                    let v = quiver.v.get(i).copied().unwrap_or(0.0) * s;
+                    if x_scale.usable(x) {
+                        xmin = xmin.min(x);
+                        xmax = xmax.max(x);
+                    }
+                    if x_scale.usable(x + u) {
+                        xmin = xmin.min(x + u);
+                        xmax = xmax.max(x + u);
+                    }
+                    if y_scale.usable(y) {
+                        ymin = ymin.min(y);
+                        ymax = ymax.max(y);
+                    }
+                    if y_scale.usable(y + v) {
+                        ymin = ymin.min(y + v);
+                        ymax = ymax.max(y + v);
+                    }
+                }
+            }
+            CompiledSeries::Pie(pie) => {
+                let r = pie.style.radius_value() * 1.3;
+                xmin = xmin.min(-r);
+                xmax = xmax.max(r);
+                ymin = ymin.min(-r);
+                ymax = ymax.max(r);
+            }
+            CompiledSeries::Hist2D(hist) => {
+                if let Some((x0, x1)) = hist.style.range_x_value() {
+                    xmin = xmin.min(x0);
+                    xmax = xmax.max(x1);
+                } else {
+                    for &x in &hist.x {
+                        if x_scale.usable(x) {
+                            xmin = xmin.min(x);
+                            xmax = xmax.max(x);
+                        }
+                    }
+                }
+                if let Some((y0, y1)) = hist.style.range_y_value() {
+                    ymin = ymin.min(y0);
+                    ymax = ymax.max(y1);
+                } else {
+                    for &y in &hist.y {
+                        if y_scale.usable(y) {
+                            ymin = ymin.min(y);
+                            ymax = ymax.max(y);
+                        }
                     }
                 }
             }
@@ -348,6 +547,82 @@ pub fn data_bounds(panel: &CompiledPanel) -> DataBounds {
                 }
                 if x_scale.usable(span.xmax) {
                     xmax = xmax.max(span.xmax);
+                }
+            }
+            CompiledSeries::AxLine(_) => {}
+            CompiledSeries::HLines(lines) => {
+                for &y in &lines.y {
+                    if y_scale.usable(y) {
+                        ymin = ymin.min(y);
+                        ymax = ymax.max(y);
+                    }
+                }
+                for &x in &lines.xmin {
+                    if x_scale.usable(x) {
+                        xmin = xmin.min(x);
+                        xmax = xmax.max(x);
+                    }
+                }
+                for &x in &lines.xmax {
+                    if x_scale.usable(x) {
+                        xmin = xmin.min(x);
+                        xmax = xmax.max(x);
+                    }
+                }
+            }
+            CompiledSeries::VLines(lines) => {
+                for &x in &lines.x {
+                    if x_scale.usable(x) {
+                        xmin = xmin.min(x);
+                        xmax = xmax.max(x);
+                    }
+                }
+                for &y in &lines.ymin {
+                    if y_scale.usable(y) {
+                        ymin = ymin.min(y);
+                        ymax = ymax.max(y);
+                    }
+                }
+                for &y in &lines.ymax {
+                    if y_scale.usable(y) {
+                        ymin = ymin.min(y);
+                        ymax = ymax.max(y);
+                    }
+                }
+            }
+            CompiledSeries::EventPlot(ev) => {
+                let offset = ev.style.lineoffset_value();
+                let half_len = ev.style.linelength_value() / 2.0;
+                let (lo, hi) = (offset - half_len, offset + half_len);
+                match ev.style.orientation_value() {
+                    EventplotOrientation::Horizontal => {
+                        for &pos in &ev.positions {
+                            if x_scale.usable(pos) {
+                                xmin = xmin.min(pos);
+                                xmax = xmax.max(pos);
+                            }
+                        }
+                        if y_scale.usable(lo) {
+                            ymin = ymin.min(lo);
+                        }
+                        if y_scale.usable(hi) {
+                            ymax = ymax.max(hi);
+                        }
+                    }
+                    EventplotOrientation::Vertical => {
+                        for &pos in &ev.positions {
+                            if y_scale.usable(pos) {
+                                ymin = ymin.min(pos);
+                                ymax = ymax.max(pos);
+                            }
+                        }
+                        if x_scale.usable(lo) {
+                            xmin = xmin.min(lo);
+                        }
+                        if x_scale.usable(hi) {
+                            xmax = xmax.max(hi);
+                        }
+                    }
                 }
             }
         }
@@ -503,6 +778,8 @@ fn format_tick_value(value: f64, format: TickFormat) -> String {
     match format {
         TickFormat::Auto => format_linear(value),
         TickFormat::Scientific => format_scientific(value),
+        TickFormat::Percent => crate::ticker::format_percent(value),
+        TickFormat::Engineering => crate::ticker::format_eng(value),
     }
 }
 
@@ -581,6 +858,8 @@ mod tests {
             y_tick_format: Default::default(),
             x_tick_label_rotation: Default::default(),
             show_legend: false,
+            legend_style: Default::default(),
+            spines: Default::default(),
             layout: Default::default(),
             series: vec![CompiledSeries::Line(LineSeries {
                 x: vec![1.0, 10.0, 100.0],

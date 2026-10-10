@@ -799,3 +799,885 @@ fn test_violinplot() -> Result<()> {
     assert!(metadata.len() > 1_000);
     Ok(())
 }
+
+#[test]
+fn test_stem() -> Result<()> {
+    std::fs::create_dir_all(OUT_DIR).ok();
+
+    let x = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0];
+    let y = [0.5, 1.8, -0.4, 2.3, 1.1, -1.5];
+
+    let figure = Figure::builder()
+        .panel(GridPos::new(1, 2, 1), |p| {
+            p.stem(
+                &x,
+                &y,
+                StemStyle::new()
+                    .color(Color::hex("#1f77b4"))
+                    .marker(Marker::Circle)
+                    .marker_size(5.0)
+                    .bottom(0.0)
+                    .label("signals"),
+            )
+            .axes(
+                AxesStyle::new()
+                    .title("Vertical Stem")
+                    .x_label("x")
+                    .y_label("y")
+                    .legend(LegendStyle::show()),
+            );
+        })
+        .panel(GridPos::new(1, 2, 2), |p| {
+            p.stem(
+                &x,
+                &y,
+                StemStyle::new()
+                    .horizontal(true)
+                    .color(Color::hex("#d62728"))
+                    .marker(Marker::Diamond)
+                    .marker_size(6.0)
+                    .bottom(0.0)
+                    .label("horizontal signals"),
+            )
+            .axes(
+                AxesStyle::new()
+                    .title("Horizontal Stem")
+                    .x_label("y")
+                    .y_label("x")
+                    .legend(LegendStyle::show()),
+            );
+        })
+        .build()?;
+
+    let path = Path::new(OUT_DIR).join("test_stem.png");
+    figure.save(&path, SaveOptions::default())?;
+    let metadata = std::fs::metadata(path).map_err(|_| Error::Io("output missing".into()))?;
+    assert!(metadata.len() > 1_000);
+    Ok(())
+}
+
+#[test]
+fn test_stackplot() -> Result<()> {
+    std::fs::create_dir_all(OUT_DIR).ok();
+
+    let x = vec![1.0, 2.0, 3.0, 4.0, 5.0];
+    let y1 = vec![1.0, 1.5, 2.0, 2.5, 3.0];
+    let y2 = vec![2.0, 2.2, 1.8, 1.5, 1.0];
+    let y3 = vec![0.5, 1.0, 1.5, 2.0, 2.5];
+
+    let figure = Figure::builder()
+        .panel(GridPos::new(1, 1, 1), |p| {
+            p.stackplot(
+                &x,
+                &[&y1, &y2, &y3],
+                StackplotStyle::new()
+                    .labels(["Organic", "Paid", "Referral"])
+                    .colors(vec![
+                        Color::hex("#1f77b4"),
+                        Color::hex("#ff7f0e"),
+                        Color::hex("#2ca02c"),
+                    ])
+                    .alpha(0.8),
+            )
+            .axes(
+                AxesStyle::new()
+                    .title("Traffic Sources Stackplot")
+                    .x_label("Day")
+                    .y_label("Visits (k)")
+                    .legend(LegendStyle::show()),
+            );
+        })
+        .build()?;
+
+    let path = Path::new(OUT_DIR).join("test_stackplot.png");
+    figure.save(&path, SaveOptions::default())?;
+    let metadata = std::fs::metadata(path).map_err(|_| Error::Io("output missing".into()))?;
+    assert!(metadata.len() > 1_000);
+    Ok(())
+}
+
+#[test]
+fn test_fill_betweenx() -> Result<()> {
+    std::fs::create_dir_all(OUT_DIR).ok();
+
+    let y = [0.0, 1.0, 2.0, 3.0, 4.0];
+    let x1 = [1.0, 2.0, 1.5, 3.0, 2.5];
+    let x2 = [3.0, 4.5, 4.0, 5.5, 5.0];
+
+    let figure = Figure::builder()
+        .panel(GridPos::new(1, 1, 1), |p| {
+            p.fill_betweenx(
+                &y,
+                &x1,
+                &x2,
+                FillBetweenStyle::new()
+                    .color(Color::hex("#9467bd"))
+                    .alpha(0.5)
+                    .label("bounded range"),
+            )
+            .axes(
+                AxesStyle::new()
+                    .title("Fill Between X")
+                    .x_label("x")
+                    .y_label("y")
+                    .legend(LegendStyle::show()),
+            );
+        })
+        .build()?;
+
+    let path = Path::new(OUT_DIR).join("test_fill_betweenx.png");
+    figure.save(&path, SaveOptions::default())?;
+    let metadata = std::fs::metadata(path).map_err(|_| Error::Io("output missing".into()))?;
+    assert!(metadata.len() > 1_000);
+    Ok(())
+}
+
+#[test]
+fn test_stairs() -> Result<()> {
+    std::fs::create_dir_all(OUT_DIR).ok();
+
+    let values = [1.0, 3.0, 2.0, 4.0, 2.5];
+    let edges = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0];
+
+    let figure = Figure::builder()
+        .panel(GridPos::new(1, 2, 1), |p| {
+            p.stairs(
+                &values,
+                &edges,
+                StairsStyle::new()
+                    .color(Color::hex("#1f77b4"))
+                    .width(2.0)
+                    .fill(true)
+                    .fill_alpha(0.3)
+                    .label("stair outline"),
+            )
+            .axes(
+                AxesStyle::new()
+                    .title("Stairs with Edges")
+                    .x_label("bin")
+                    .y_label("count")
+                    .legend(LegendStyle::show()),
+            );
+        })
+        .panel(GridPos::new(1, 2, 2), |p| {
+            p.stairs_values(
+                &values,
+                StairsStyle::new()
+                    .color(Color::hex("#e377c2"))
+                    .width(2.5)
+                    .dash(LineDash::Dashed)
+                    .label("values only"),
+            )
+            .axes(
+                AxesStyle::new()
+                    .title("Stairs Values Only")
+                    .x_label("step")
+                    .y_label("value")
+                    .legend(LegendStyle::show()),
+            );
+        })
+        .build()?;
+
+    let path = Path::new(OUT_DIR).join("test_stairs.png");
+    figure.save(&path, SaveOptions::default())?;
+    let metadata = std::fs::metadata(path).map_err(|_| Error::Io("output missing".into()))?;
+    assert!(metadata.len() > 1_000);
+    Ok(())
+}
+
+#[test]
+fn test_quiver() -> Result<()> {
+    std::fs::create_dir_all(OUT_DIR).ok();
+
+    let x = [0.0, 1.0, 2.0, 0.0, 1.0, 2.0];
+    let y = [0.0, 0.0, 0.0, 1.0, 1.0, 1.0];
+    let u = [0.5, 0.2, -0.4, 0.6, 0.0, -0.5];
+    let v = [0.5, 0.8, 0.3, -0.2, 0.7, -0.4];
+
+    let figure = Figure::builder()
+        .panel(GridPos::new(1, 1, 1), |p| {
+            p.quiver(
+                &x,
+                &y,
+                &u,
+                &v,
+                QuiverStyle::new()
+                    .color(Color::hex("#17becf"))
+                    .scale(0.8)
+                    .arrow_size(5.0)
+                    .width(1.5),
+            )
+            .axes(
+                AxesStyle::new()
+                    .title("2D Vector Field (Quiver)")
+                    .x_label("x")
+                    .y_label("y"),
+            );
+        })
+        .build()?;
+
+    let path = Path::new(OUT_DIR).join("test_quiver.png");
+    figure.save(&path, SaveOptions::default())?;
+    let metadata = std::fs::metadata(path).map_err(|_| Error::Io("output missing".into()))?;
+    assert!(metadata.len() > 1_000);
+    Ok(())
+}
+
+#[test]
+fn test_pie() -> Result<()> {
+    std::fs::create_dir_all(OUT_DIR).ok();
+
+    let values = [15.0, 30.0, 45.0, 10.0];
+    let labels = ["Frogs", "Hogs", "Dogs", "Logs"];
+    let explode = [0.0, 0.1, 0.0, 0.0];
+
+    let figure = Figure::builder()
+        .panel(GridPos::new(1, 1, 1), |p| {
+            p.pie(
+                &values,
+                PieStyle::new()
+                    .labels(&labels)
+                    .explode(&explode)
+                    .autopct("%1.1f%%")
+                    .start_angle(90.0)
+                    .edge_color(Color::rgb(255, 255, 255))
+                    .edge_width(1.5),
+            )
+            .axes(
+                AxesStyle::new()
+                    .title("Pie Chart")
+                    .hide_axes(true),
+            );
+        })
+        .build()?;
+
+    let path = Path::new(OUT_DIR).join("test_pie.png");
+    figure.save(&path, SaveOptions::default())?;
+    let metadata = std::fs::metadata(path).map_err(|_| Error::Io("output missing".into()))?;
+    assert!(metadata.len() > 1_000);
+    Ok(())
+}
+
+#[test]
+fn test_hist2d() -> Result<()> {
+    std::fs::create_dir_all(OUT_DIR).ok();
+
+    // Generate two 2D clusters
+    let mut x = Vec::new();
+    let mut y = Vec::new();
+    for i in 0..100 {
+        let angle = i as f64 * 0.1;
+        x.push(angle.cos() * 2.0);
+        y.push(angle.sin() * 2.0);
+        x.push(angle.cos() * 0.5 + 1.0);
+        y.push(angle.sin() * 0.5 + 1.0);
+    }
+
+    let figure = Figure::builder()
+        .panel(GridPos::new(1, 1, 1), |p| {
+            p.hist2d(
+                &x,
+                &y,
+                Hist2DStyle::new()
+                    .bins(15, 15)
+                    .colormap(Colormap::Turbo)
+                    .show_colorbar(true),
+            )
+            .axes(
+                AxesStyle::new()
+                    .title("2D Histogram (Hist2D)")
+                    .x_label("x")
+                    .y_label("y"),
+            );
+        })
+        .build()?;
+
+    let path = Path::new(OUT_DIR).join("test_hist2d.png");
+    figure.save(&path, SaveOptions::default())?;
+    let metadata = std::fs::metadata(path).map_err(|_| Error::Io("output missing".into()))?;
+    assert!(metadata.len() > 1_000);
+    Ok(())
+}
+
+#[test]
+fn test_stacked_bars() -> Result<()> {
+    std::fs::create_dir_all(OUT_DIR).ok();
+
+    let x = [1.0, 2.0, 3.0, 4.0];
+    let bottom_heights = [5.0, 7.0, 4.0, 6.0];
+    let top_heights = [3.0, 2.0, 5.0, 4.0];
+
+    let y = [1.0, 2.0, 3.0, 4.0];
+    let left_widths = [10.0, 15.0, 8.0, 12.0];
+    let right_widths = [5.0, 6.0, 7.0, 4.0];
+
+    let figure = Figure::builder()
+        .panel(GridPos::new(1, 2, 1), |p| {
+            p.bar(
+                &x,
+                &bottom_heights,
+                BarStyle::new()
+                    .color(Color::hex("#1f77b4"))
+                    .label("Base"),
+            )
+            .bar(
+                &x,
+                &top_heights,
+                BarStyle::new()
+                    .bottom(&bottom_heights)
+                    .color(Color::hex("#ff7f0e"))
+                    .label("Stacked"),
+            )
+            .axes(
+                AxesStyle::new()
+                    .title("Vertical Stacked Bars")
+                    .legend(LegendStyle::show()),
+            );
+        })
+        .panel(GridPos::new(1, 2, 2), |p| {
+            p.barh(
+                &y,
+                &left_widths,
+                BarHStyle::new()
+                    .color(Color::hex("#2ca02c"))
+                    .label("Base H"),
+            )
+            .barh(
+                &y,
+                &right_widths,
+                BarHStyle::new()
+                    .left(&left_widths)
+                    .color(Color::hex("#d62728"))
+                    .label("Stacked H"),
+            )
+            .axes(
+                AxesStyle::new()
+                    .title("Horizontal Stacked Bars")
+                    .legend(LegendStyle::show()),
+            );
+        })
+        .build()?;
+
+    let path = Path::new(OUT_DIR).join("test_stacked_bars.png");
+    figure.save(&path, SaveOptions::default())?;
+    let metadata = std::fs::metadata(path).map_err(|_| Error::Io("output missing".into()))?;
+    assert!(metadata.len() > 1_000);
+    Ok(())
+}
+
+#[test]
+fn test_bar_errorbars() -> Result<()> {
+    std::fs::create_dir_all(OUT_DIR).ok();
+
+    let x = [1.0, 2.0, 3.0, 4.0];
+    let heights = [10.0, 15.0, 12.0, 18.0];
+    let yerr = [1.0, 1.5, 0.8, 2.0];
+
+    let y = [1.0, 2.0, 3.0];
+    let widths = [5.0, 8.0, 6.0];
+    let xerr = [0.5, 1.0, 0.7];
+
+    let figure = Figure::builder()
+        .panel(GridPos::new(1, 2, 1), |p| {
+            p.bar(
+                &x,
+                &heights,
+                BarStyle::new()
+                    .yerr(&yerr)
+                    .capsize(4.0)
+                    .color(Color::hex("#4c72b0"))
+                    .edge_color(Color::rgb(0, 0, 0))
+                    .edge_width(1.0),
+            )
+            .axes(AxesStyle::new().title("Bar with yerr"));
+        })
+        .panel(GridPos::new(1, 2, 2), |p| {
+            p.barh(
+                &y,
+                &widths,
+                BarHStyle::new()
+                    .xerr(&xerr)
+                    .capsize(4.0)
+                    .color(Color::hex("#dd8452")),
+            )
+            .axes(AxesStyle::new().title("BarH with xerr"));
+        })
+        .build()?;
+
+    let path = Path::new(OUT_DIR).join("test_bar_errorbars.png");
+    figure.save(&path, SaveOptions::default())?;
+    let metadata = std::fs::metadata(path).map_err(|_| Error::Io("output missing".into()))?;
+    assert!(metadata.len() > 1_000);
+    Ok(())
+}
+
+#[test]
+fn test_scatter_colormapped_and_sized() -> Result<()> {
+    std::fs::create_dir_all(OUT_DIR).ok();
+
+    let x = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0];
+    let y = [2.0, 3.5, 2.8, 5.0, 4.2, 6.1, 5.8, 7.2];
+    let sizes = [30.0, 80.0, 150.0, 60.0, 200.0, 120.0, 40.0, 180.0];
+    let values = [10.0, 25.0, 30.0, 15.0, 50.0, 35.0, 12.0, 48.0];
+
+    let figure = Figure::builder()
+        .panel(GridPos::new(1, 1, 1), |p| {
+            p.scatter(
+                &x,
+                &y,
+                ScatterStyle::new()
+                    .sizes(&sizes)
+                    .values(&values)
+                    .colormap(Colormap::Spectral)
+                    .marker(Marker::Circle)
+                    .edge_color(Color::rgb(0, 0, 0))
+                    .edge_width(1.0)
+                    .alpha(0.85),
+            )
+            .axes(
+                AxesStyle::new()
+                    .title("Scatter with Variable Sizes and Colormap")
+                    .x_label("X Coordinate")
+                    .y_label("Y Coordinate"),
+            );
+        })
+        .build()?;
+
+    let path = Path::new(OUT_DIR).join("test_scatter_colormapped.png");
+    figure.save(&path, SaveOptions::default())?;
+    let metadata = std::fs::metadata(path).map_err(|_| Error::Io("output missing".into()))?;
+    assert!(metadata.len() > 1_000);
+    Ok(())
+}
+
+#[test]
+fn test_spines_and_despine() -> Result<()> {
+    std::fs::create_dir_all(OUT_DIR).ok();
+
+    let x = [1.0, 2.0, 3.0, 4.0];
+    let y = [10.0, 20.0, 15.0, 25.0];
+
+    let figure = Figure::builder()
+        .panel(GridPos::new(1, 2, 1), |p| {
+            p.line(&x, &y, LineStyle::new().color(Color::hex("#1f77b4")))
+                .axes(
+                    AxesStyle::new()
+                        .title("Despined (Top & Right Hidden)")
+                        .despine(),
+                );
+        })
+        .panel(GridPos::new(1, 2, 2), |p| {
+            p.line(&x, &y, LineStyle::new().color(Color::hex("#ff7f0e")))
+                .axes(
+                    AxesStyle::new()
+                        .title("Custom Spines (Left & Bottom Only)")
+                        .spines_visible(false, false, true, true),
+                );
+        })
+        .build()?;
+
+    let path = Path::new(OUT_DIR).join("test_spines.png");
+    figure.save(&path, SaveOptions::default())?;
+    let metadata = std::fs::metadata(path).map_err(|_| Error::Io("output missing".into()))?;
+    assert!(metadata.len() > 1_000);
+    Ok(())
+}
+
+#[test]
+fn test_legend_locations_and_columns() -> Result<()> {
+    std::fs::create_dir_all(OUT_DIR).ok();
+
+    let x = [1.0, 2.0, 3.0];
+    let y1 = [1.0, 2.0, 3.0];
+    let y2 = [2.0, 3.0, 1.0];
+    let y3 = [3.0, 1.0, 2.0];
+    let y4 = [1.5, 2.5, 1.8];
+
+    let figure = Figure::builder()
+        .panel(GridPos::new(1, 2, 1), |p| {
+            p.line(&x, &y1, LineStyle::new().label("Series 1"))
+                .line(&x, &y2, LineStyle::new().label("Series 2"))
+                .line(&x, &y3, LineStyle::new().label("Series 3"))
+                .line(&x, &y4, LineStyle::new().label("Series 4"))
+                .axes(
+                    AxesStyle::new()
+                        .title("Inside Upper Right (2 cols)")
+                        .legend(
+                            LegendStyle::show()
+                                .loc(LegendLoc::UpperRight)
+                                .ncols(2)
+                                .title("Metrics")
+                                .frameon(true),
+                        ),
+                );
+        })
+        .panel(GridPos::new(1, 2, 2), |p| {
+            p.line(&x, &y1, LineStyle::new().label("Alpha"))
+                .line(&x, &y2, LineStyle::new().label("Beta"))
+                .axes(
+                    AxesStyle::new()
+                        .title("Inside Lower Left (frameon=false)")
+                        .legend(
+                            LegendStyle::show()
+                                .loc(LegendLoc::LowerLeft)
+                                .frameon(false),
+                        ),
+                );
+        })
+        .build()?;
+
+    let path = Path::new(OUT_DIR).join("test_legend_styling.png");
+    figure.save(&path, SaveOptions::default())?;
+    let metadata = std::fs::metadata(path).map_err(|_| Error::Io("output missing".into()))?;
+    assert!(metadata.len() > 1_000);
+    Ok(())
+}
+
+#[test]
+fn test_tick_formatters() -> Result<()> {
+    std::fs::create_dir_all(OUT_DIR).ok();
+
+    let x = [0.1, 0.25, 0.5, 0.75, 1.0];
+    let y = [10.0, 25.0, 50.0, 75.0, 100.0];
+
+    let figure = Figure::builder()
+        .panel(GridPos::new(1, 1, 1), |p| {
+            p.line(&x, &y, LineStyle::new().color(Color::hex("#2ca02c")))
+                .axes(
+                    AxesStyle::new()
+                        .title("Percent Formatted Ticks")
+                        .x_tick_format(TickFormat::Percent)
+                        .x_label("Completion Rate")
+                        .y_label("Score"),
+                );
+        })
+        .build()?;
+
+    let path = Path::new(OUT_DIR).join("test_percent_ticks.png");
+    figure.save(&path, SaveOptions::default())?;
+    let metadata = std::fs::metadata(path).map_err(|_| Error::Io("output missing".into()))?;
+    assert!(metadata.len() > 1_000);
+    Ok(())
+}
+
+#[test]
+fn test_reversed_and_extended_colormaps() -> Result<()> {
+    std::fs::create_dir_all(OUT_DIR).ok();
+
+    let cmaps = [
+        Colormap::Greys,
+        Colormap::Blues,
+        Colormap::Reds,
+        Colormap::Spectral,
+        Colormap::RdBu,
+        Colormap::YlGnBu,
+        Colormap::Viridis.reversed(),
+    ];
+
+    let mut builder = Figure::builder();
+    for (i, cmap) in cmaps.into_iter().enumerate() {
+        let grid_pos = GridPos::new(1, 7, i + 1);
+        let data: Vec<f64> = (0..100).map(|v| v as f64).collect();
+        builder = builder.panel(grid_pos, move |p| {
+            p.image(data, 10, 10, ImageStyle::new().colormap(cmap))
+                .axes(AxesStyle::new().hide_axes(true));
+        });
+    }
+
+    let figure = builder.build()?;
+    let path = Path::new(OUT_DIR).join("test_colormaps_palette.png");
+    figure.save(&path, SaveOptions::default())?;
+    let metadata = std::fs::metadata(path).map_err(|_| Error::Io("output missing".into()))?;
+    assert!(metadata.len() > 1_000);
+    Ok(())
+}
+
+#[test]
+fn test_additional_markers() -> Result<()> {
+    std::fs::create_dir_all(OUT_DIR).ok();
+
+    let markers = [
+        Marker::TriangleLeft,
+        Marker::TriangleRight,
+        Marker::Pentagon,
+        Marker::Hexagon,
+        Marker::Point,
+        Marker::VLine,
+        Marker::HLine,
+    ];
+
+    let mut builder = Figure::builder();
+    builder = builder.panel(GridPos::new(1, 1, 1), |p| {
+        for (i, &marker) in markers.iter().enumerate() {
+            let x = [i as f64 + 1.0];
+            let y = [i as f64 + 1.0];
+            p.scatter(
+                &x,
+                &y,
+                ScatterStyle::new()
+                    .marker(marker)
+                    .size(100.0)
+                    .color(Color::TABLEAU[i % Color::TABLEAU.len()])
+                    .label(format!("Marker {i}")),
+            );
+        }
+        p.axes(
+            AxesStyle::new()
+                .title("New Marker Shapes")
+                .legend(LegendStyle::show().ncols(2)),
+        );
+    });
+
+    let figure = builder.build()?;
+    let path = Path::new(OUT_DIR).join("test_new_markers.png");
+    figure.save(&path, SaveOptions::default())?;
+    let metadata = std::fs::metadata(path).map_err(|_| Error::Io("output missing".into()))?;
+    assert!(metadata.len() > 1_000);
+    Ok(())
+}
+
+#[test]
+fn test_axline() -> Result<()> {
+    std::fs::create_dir_all(OUT_DIR).ok();
+
+    let figure = Figure::builder()
+        .panel(GridPos::new(1, 1, 1), |p| {
+            p.line(&[0.0, 10.0], &[0.0, 10.0], LineStyle::new().label("reference"))
+                .axline(
+                    (2.0, 2.0),
+                    (8.0, 5.0),
+                    LineStyle::new()
+                        .color(Color::hex("#ff7f0e"))
+                        .dash(LineDash::Dashed)
+                        .width(2.0)
+                        .label("axline (2 pts)"),
+                )
+                .axline_slope(
+                    (0.0, 8.0),
+                    -0.8,
+                    LineStyle::new()
+                        .color(Color::hex("#2ca02c"))
+                        .dash(LineDash::Dotted)
+                        .width(2.0)
+                        .label("axline (slope)"),
+                )
+                .axes(
+                    AxesStyle::new()
+                        .title("AxLine (infinite reference lines)")
+                        .x_label("x")
+                        .y_label("y")
+                        .x_range(0.0, 10.0)
+                        .y_range(0.0, 10.0)
+                        .legend(LegendStyle::show()),
+                );
+        })
+        .build()?;
+
+    let path = Path::new(OUT_DIR).join("test_axline.png");
+    figure.save(&path, SaveOptions::default())?;
+    let metadata = std::fs::metadata(path).map_err(|_| Error::Io("output missing".into()))?;
+    assert!(metadata.len() > 1_000);
+    Ok(())
+}
+
+#[test]
+fn test_hlines_vlines() -> Result<()> {
+    std::fs::create_dir_all(OUT_DIR).ok();
+
+    let ys = [1.0, 2.0, 3.0, 4.0];
+    let xmins = [0.5, 1.0, 1.5, 2.0];
+    let xmaxs = [4.5, 4.0, 3.5, 3.0];
+
+    let xs = [1.5, 2.5, 3.5];
+    let ymins = [0.5, 0.8, 1.0];
+    let ymaxs = [4.5, 4.2, 4.0];
+
+    let figure = Figure::builder()
+        .panel(GridPos::new(1, 2, 1), |p| {
+            p.hlines(
+                &ys,
+                &xmins,
+                &xmaxs,
+                LineStyle::new()
+                    .color(Color::TABLEAU[0])
+                    .width(2.0)
+                    .label("hlines"),
+            )
+            .hlines_scalar(
+                &[0.5, 4.5],
+                0.0,
+                5.0,
+                LineStyle::new()
+                    .color(Color::hex("#d62728"))
+                    .dash(LineDash::Dashed),
+            )
+            .axes(
+                AxesStyle::new()
+                    .title("Horizontal Lines (hlines)")
+                    .x_label("x")
+                    .y_label("y")
+                    .legend(LegendStyle::show()),
+            );
+        })
+        .panel(GridPos::new(1, 2, 2), |p| {
+            p.vlines(
+                &xs,
+                &ymins,
+                &ymaxs,
+                LineStyle::new()
+                    .color(Color::TABLEAU[1])
+                    .width(2.0)
+                    .label("vlines"),
+            )
+            .vlines_scalar(
+                &[0.5, 4.5],
+                0.0,
+                5.0,
+                LineStyle::new()
+                    .color(Color::hex("#2ca02c"))
+                    .dash(LineDash::Dotted),
+            )
+            .axes(
+                AxesStyle::new()
+                    .title("Vertical Lines (vlines)")
+                    .x_label("x")
+                    .y_label("y")
+                    .legend(LegendStyle::show()),
+            );
+        })
+        .build()?;
+
+    let path = Path::new(OUT_DIR).join("test_hlines_vlines.png");
+    figure.save(&path, SaveOptions::default())?;
+    let metadata = std::fs::metadata(path).map_err(|_| Error::Io("output missing".into()))?;
+    assert!(metadata.len() > 1_000);
+    Ok(())
+}
+
+#[test]
+fn test_eventplot() -> Result<()> {
+    std::fs::create_dir_all(OUT_DIR).ok();
+
+    let spikes1 = [0.2, 0.5, 1.2, 1.8, 2.5, 3.1, 4.0, 4.7];
+    let spikes2 = [0.4, 0.9, 1.5, 2.2, 2.9, 3.6, 4.2];
+
+    let figure = Figure::builder()
+        .panel(GridPos::new(1, 1, 1), |p| {
+            p.eventplot(
+                &spikes1,
+                EventplotStyle::new()
+                    .orientation(EventplotOrientation::Horizontal)
+                    .lineoffset(1.0)
+                    .linelength(0.8)
+                    .color(Color::TABLEAU[0])
+                    .linewidth(2.0)
+                    .label("Neuron 1"),
+            )
+            .eventplot(
+                &spikes2,
+                EventplotStyle::new()
+                    .orientation(EventplotOrientation::Horizontal)
+                    .lineoffset(2.0)
+                    .linelength(0.8)
+                    .color(Color::TABLEAU[1])
+                    .linewidth(2.0)
+                    .label("Neuron 2"),
+            )
+            .axes(
+                AxesStyle::new()
+                    .title("Raster Plot (eventplot)")
+                    .x_label("Time (s)")
+                    .y_label("Neuron Index")
+                    .y_range(0.0, 3.0)
+                    .legend(LegendStyle::show()),
+            );
+        })
+        .build()?;
+
+    let path = Path::new(OUT_DIR).join("test_eventplot.png");
+    figure.save(&path, SaveOptions::default())?;
+    let metadata = std::fs::metadata(path).map_err(|_| Error::Io("output missing".into()))?;
+    assert!(metadata.len() > 1_000);
+    Ok(())
+}
+
+#[test]
+fn test_text_and_annotation_bbox() -> Result<()> {
+    std::fs::create_dir_all(OUT_DIR).ok();
+
+    let x = [0.0, 1.0, 2.0, 3.0, 4.0];
+    let y = [0.0, 1.0, 4.0, 9.0, 16.0];
+
+    let figure = Figure::builder()
+        .panel(GridPos::new(1, 1, 1), |p| {
+            p.line(&x, &y, LineStyle::new().color(Color::TABLEAU[0]))
+                .text(
+                    1.0,
+                    12.0,
+                    "Info Box: y = x²",
+                    TextStyle::new().fontsize(12.0).bbox(
+                        BboxStyle::new()
+                            .face_color(Color::hex("#fffae6"))
+                            .edge_color(Color::hex("#b38600"))
+                            .edge_width(1.5)
+                            .pad(5.0),
+                    ),
+                )
+                .annotate(
+                    "Turning Point",
+                    (2.0, 4.0),
+                    (2.5, 8.0),
+                    AnnotationStyle::new()
+                        .fontsize(11.0)
+                        .arrow(ArrowStyle::new().color(Color::hex("#d62728")).width(1.5))
+                        .bbox(
+                            BboxStyle::new()
+                                .face_color(Color::hex("#e8f4f8"))
+                                .edge_color(Color::hex("#1f77b4"))
+                                .edge_width(1.2)
+                                .pad(4.0),
+                        ),
+                )
+                .axes(
+                    AxesStyle::new()
+                        .title("Text and Annotation Bounding Boxes")
+                        .x_label("x")
+                        .y_label("y"),
+                );
+        })
+        .build()?;
+
+    let path = Path::new(OUT_DIR).join("test_bbox.png");
+    figure.save(&path, SaveOptions::default())?;
+    let metadata = std::fs::metadata(path).map_err(|_| Error::Io("output missing".into()))?;
+    assert!(metadata.len() > 1_000);
+    Ok(())
+}
+
+#[test]
+fn test_engineering_tick_format() -> Result<()> {
+    std::fs::create_dir_all(OUT_DIR).ok();
+
+    let freqs = [100.0, 1_000.0, 10_000.0, 100_000.0, 1_000_000.0];
+    let volts = [0.001, 0.005, 0.02, 0.05, 0.1];
+
+    let figure = Figure::builder()
+        .panel(GridPos::new(1, 1, 1), |p| {
+            p.line(&freqs, &volts, LineStyle::new().color(Color::TABLEAU[0]))
+                .axes(
+                    AxesStyle::new()
+                        .title("Frequency Response")
+                        .x_label("Frequency (Hz)")
+                        .y_label("Amplitude (V)")
+                        .x_tick_format(TickFormat::Engineering)
+                        .y_tick_format(TickFormat::Engineering),
+                );
+        })
+        .build()?;
+
+    let path = Path::new(OUT_DIR).join("test_eng_format.png");
+    figure.save(&path, SaveOptions::default())?;
+    let metadata = std::fs::metadata(path).map_err(|_| Error::Io("output missing".into()))?;
+    assert!(metadata.len() > 1_000);
+    Ok(())
+}

@@ -3,7 +3,7 @@
 use mplot::prelude::{
     AxesStyle, BarHStyle, BarStyle, BoxplotStyle, Color, Colormap, ContourStyle, ErrorBarStyle,
     Figure, FillBetweenStyle, GridPos, HistStyle, ImageStyle, LineStyle, SaveOptions, Scale,
-    ScatterStyle, Size, StepStyle, StepWhere, ViolinStyle,
+    ScatterStyle, Size, StemStyle, StepStyle, StepWhere, ViolinStyle,
 };
 use mplot::Result;
 use std::path::{Path, PathBuf};
@@ -443,6 +443,23 @@ fn render_violinplot(path: &Path) -> Result<()> {
         .save(path, fidelity_save_options())
 }
 
+fn render_stem(path: &Path) -> Result<()> {
+    let x = [0.0, 1.0, 2.0, 3.0, 4.0];
+    let y = [1.0, 2.5, 0.5, 3.0, 1.5];
+
+    Figure::builder()
+        .panel(GridPos::new(1, 1, 1), |p| {
+            p.stem(&x, &y, StemStyle::new()).axes(
+                AxesStyle::new()
+                    .title("Stem plot")
+                    .x_label("x")
+                    .y_label("y"),
+            );
+        })
+        .build()?
+        .save(path, fidelity_save_options())
+}
+
 fn compare_pngs(
     actual: &Path,
     golden: &Path,
@@ -588,4 +605,9 @@ fn fidelity_errorbar() {
 #[test]
 fn fidelity_violinplot() {
     fidelity_case("violinplot.png", render_violinplot, 35.0).unwrap();
+}
+
+#[test]
+fn fidelity_stem() {
+    fidelity_case("stem.png", render_stem, 40.0).unwrap();
 }

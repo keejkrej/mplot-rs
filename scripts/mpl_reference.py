@@ -279,6 +279,17 @@ def write_violinplot() -> None:
     save(fig, "violinplot.png")
 
 
+def write_stem() -> None:
+    x = [0.0, 1.0, 2.0, 3.0, 4.0]
+    y = [1.0, 2.5, 0.5, 3.0, 1.5]
+    fig, ax = plt.subplots(figsize=(6.4, 4.8))
+    ax.stem(x, y)
+    ax.set_title("Stem plot")
+    ax.set_xlabel("x")
+    ax.set_ylabel("y")
+    save(fig, "stem.png")
+
+
 if __name__ == "__main__":
     apply_mplot_rcparams()
     write_simple_line()
@@ -300,4 +311,5 @@ if __name__ == "__main__":
     write_barh()
     write_errorbar()
     write_violinplot()
+    write_stem()
     print(f"wrote reference figures under {OUT}")

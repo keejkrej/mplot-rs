@@ -5,6 +5,7 @@ use plotters::style::text_anchor::{HPos, Pos, VPos};
 use plotters::style::{Color, FontDesc, IntoFont, RGBColor, ShapeStyle, TextStyle};
 
 use crate::color::Color as MplotColor;
+use crate::panel::{LegendLoc, LegendStyle};
 use crate::render::model::{CompiledSeries, LineSeries};
 use crate::render::mpl_style::{
     stroke_width_px, MPL_FONT, MPL_LEGEND_BORDER_AXES_PAD, MPL_LEGEND_BORDER_PAD,
@@ -25,32 +26,61 @@ pub struct LegendEntry {
 pub fn collect_entries(series: &[CompiledSeries]) -> Vec<LegendEntry> {
     series
         .iter()
-        .filter_map(|item| match item {
-            CompiledSeries::Line(curve) if !curve.label.is_empty() => Some(entry_from_line(curve)),
-            CompiledSeries::Scatter(scatter) if !scatter.label.is_empty() => Some(LegendEntry {
+        .flat_map(|item| match item {
+            CompiledSeries::Stackplot(stack) => {
+                let default_colors = crate::color::Color::TABLEAU;
+                let custom_colors = stack.style.colors_value();
+                stack
+                    .style
+                    .labels_value()
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(idx, label)| {
+                        if label.is_empty() {
+                            None
+                        } else {
+                            let color = if !custom_colors.is_empty() {
+                                custom_colors[idx % custom_colors.len()]
+                            } else {
+                                default_colors[idx % default_colors.len()]
+                            };
+                            Some(LegendEntry {
+                                label: label.clone(),
+                                color,
+                                dash: LineDash::Solid,
+                                width: 1.0,
+                                patch: true,
+                                marker: Marker::None,
+                            })
+                        }
+                    })
+                    .collect::<Vec<_>>()
+            }
+            CompiledSeries::Line(curve) if !curve.label.is_empty() => vec![entry_from_line(curve)],
+            CompiledSeries::Scatter(scatter) if !scatter.label.is_empty() => vec![LegendEntry {
                 label: scatter.label.clone(),
                 color: scatter.color,
                 dash: LineDash::Solid,
                 width: 0.0,
                 patch: false,
                 marker: scatter.marker,
-            }),
-            CompiledSeries::ErrorBar(err) if !err.label.is_empty() => Some(LegendEntry {
+            }],
+            CompiledSeries::ErrorBar(err) if !err.label.is_empty() => vec![LegendEntry {
                 label: err.label.clone(),
                 color: err.color,
                 dash: err.dash,
                 width: err.line_width,
                 patch: false,
                 marker: err.marker,
-            }),
-            CompiledSeries::Step(step) if !step.label.is_empty() => Some(LegendEntry {
+            }],
+            CompiledSeries::Step(step) if !step.label.is_empty() => vec![LegendEntry {
                 label: step.label.clone(),
                 color: step.color,
                 dash: step.dash,
                 width: step.width,
                 patch: false,
                 marker: Marker::None,
-            }),
+            }],
             CompiledSeries::Violin(violin)
                 if violin.style.label_value().is_some_and(|l| !l.is_empty()) =>
             {
@@ -58,80 +88,156 @@ pub fn collect_entries(series: &[CompiledSeries]) -> Vec<LegendEntry> {
                     .style
                     .face_color_value()
                     .unwrap_or(crate::color::Color::hex("#1f77b4"));
-                Some(LegendEntry {
+                vec![LegendEntry {
                     label: violin.style.label_value().unwrap().to_string(),
                     color,
                     dash: LineDash::Solid,
                     width: 1.0,
                     patch: true,
                     marker: Marker::None,
-                })
+                }]
             }
-            CompiledSeries::Bar(bar) if !bar.label.is_empty() => Some(LegendEntry {
+            CompiledSeries::Bar(bar) if !bar.label.is_empty() => vec![LegendEntry {
                 label: bar.label.clone(),
                 color: bar.color,
                 dash: LineDash::Solid,
                 width: 1.0,
                 patch: true,
                 marker: Marker::None,
-            }),
-            CompiledSeries::BarH(barh) if !barh.label.is_empty() => Some(LegendEntry {
+            }],
+            CompiledSeries::BarH(barh) if !barh.label.is_empty() => vec![LegendEntry {
                 label: barh.label.clone(),
                 color: barh.color,
                 dash: LineDash::Solid,
                 width: 1.0,
                 patch: true,
                 marker: Marker::None,
-            }),
-            CompiledSeries::Histogram(hist) if !hist.label.is_empty() => Some(LegendEntry {
+            }],
+            CompiledSeries::Histogram(hist) if !hist.label.is_empty() => vec![LegendEntry {
                 label: hist.label.clone(),
                 color: hist.color,
                 dash: LineDash::Solid,
                 width: 1.0,
                 patch: true,
                 marker: Marker::None,
-            }),
-            CompiledSeries::FillBetween(fill) if !fill.label.is_empty() => Some(LegendEntry {
+            }],
+            CompiledSeries::FillBetween(fill) if !fill.label.is_empty() => vec![LegendEntry {
                 label: fill.label.clone(),
                 color: fill.color,
                 dash: LineDash::Solid,
                 width: 1.0,
                 patch: true,
                 marker: Marker::None,
-            }),
-            CompiledSeries::AxHLine(line) if !line.label.is_empty() => Some(LegendEntry {
+            }],
+            CompiledSeries::FillBetweenX(fill) if !fill.label.is_empty() => vec![LegendEntry {
+                label: fill.label.clone(),
+                color: fill.color,
+                dash: LineDash::Solid,
+                width: 1.0,
+                patch: true,
+                marker: Marker::None,
+            }],
+            CompiledSeries::Stem(stem)
+                if stem.style.label_value().is_some_and(|l| !l.is_empty()) =>
+            {
+                vec![LegendEntry {
+                    label: stem.style.label_value().unwrap().to_string(),
+                    color: stem.style.color_value(),
+                    dash: stem.style.line_dash_value(),
+                    width: stem.style.line_width_value(),
+                    patch: false,
+                    marker: stem.style.marker_value(),
+                }]
+            }
+            CompiledSeries::Stairs(stairs)
+                if stairs.style.label_value().is_some_and(|l| !l.is_empty()) =>
+            {
+                vec![LegendEntry {
+                    label: stairs.style.label_value().unwrap().to_string(),
+                    color: stairs.style.color_value(),
+                    dash: stairs.style.dash_value(),
+                    width: stairs.style.width_value(),
+                    patch: stairs.style.fill_value(),
+                    marker: Marker::None,
+                }]
+            }
+            CompiledSeries::Quiver(quiver)
+                if quiver.style.label_value().is_some_and(|l| !l.is_empty()) =>
+            {
+                vec![LegendEntry {
+                    label: quiver.style.label_value().unwrap().to_string(),
+                    color: quiver.style.color_value(),
+                    dash: LineDash::Solid,
+                    width: quiver.style.width_value(),
+                    patch: false,
+                    marker: Marker::None,
+                }]
+            }
+            CompiledSeries::AxHLine(line) if !line.label.is_empty() => vec![LegendEntry {
                 label: line.label.clone(),
                 color: line.color,
                 dash: line.dash,
                 width: line.width,
                 patch: false,
                 marker: Marker::None,
-            }),
-            CompiledSeries::AxVLine(line) if !line.label.is_empty() => Some(LegendEntry {
+            }],
+            CompiledSeries::AxVLine(line) if !line.label.is_empty() => vec![LegendEntry {
                 label: line.label.clone(),
                 color: line.color,
                 dash: line.dash,
                 width: line.width,
                 patch: false,
                 marker: Marker::None,
-            }),
-            CompiledSeries::AxHSpan(span) if !span.label.is_empty() => Some(LegendEntry {
+            }],
+            CompiledSeries::AxHSpan(span) if !span.label.is_empty() => vec![LegendEntry {
                 label: span.label.clone(),
                 color: span.color,
                 dash: LineDash::Solid,
                 width: 1.0,
                 patch: true,
                 marker: Marker::None,
-            }),
-            CompiledSeries::AxVSpan(span) if !span.label.is_empty() => Some(LegendEntry {
+            }],
+            CompiledSeries::AxVSpan(span) if !span.label.is_empty() => vec![LegendEntry {
                 label: span.label.clone(),
                 color: span.color,
                 dash: LineDash::Solid,
                 width: 1.0,
                 patch: true,
                 marker: Marker::None,
-            }),
-            _ => None,
+            }],
+            CompiledSeries::AxLine(line) if !line.style.label_value().unwrap_or("").is_empty() => vec![LegendEntry {
+                label: line.style.label_value().unwrap_or("").to_string(),
+                color: line.style.color_value(),
+                dash: line.style.dash_value(),
+                width: line.style.width_value(),
+                patch: false,
+                marker: Marker::None,
+            }],
+            CompiledSeries::HLines(lines) if !lines.style.label_value().unwrap_or("").is_empty() => vec![LegendEntry {
+                label: lines.style.label_value().unwrap_or("").to_string(),
+                color: lines.style.color_value(),
+                dash: lines.style.dash_value(),
+                width: lines.style.width_value(),
+                patch: false,
+                marker: Marker::None,
+            }],
+            CompiledSeries::VLines(lines) if !lines.style.label_value().unwrap_or("").is_empty() => vec![LegendEntry {
+                label: lines.style.label_value().unwrap_or("").to_string(),
+                color: lines.style.color_value(),
+                dash: lines.style.dash_value(),
+                width: lines.style.width_value(),
+                patch: false,
+                marker: Marker::None,
+            }],
+            CompiledSeries::EventPlot(ev) if !ev.style.label_value().is_empty() => vec![LegendEntry {
+                label: ev.style.label_value().to_string(),
+                color: ev.style.color_value(),
+                dash: ev.style.dash_value(),
+                width: ev.style.linewidth_value(),
+                patch: false,
+                marker: Marker::None,
+            }],
+            _ => Vec::new(),
         })
         .collect()
 }
@@ -147,12 +253,15 @@ fn entry_from_line(curve: &LineSeries) -> LegendEntry {
     }
 }
 
-struct MeasuredLegend {
-    label_widths: Vec<i32>,
-    text_h: i32,
-    horizontal: bool,
-    frame_w: i32,
-    frame_h: i32,
+pub(crate) struct MeasuredLegend {
+    pub label_widths: Vec<i32>,
+    pub text_h: i32,
+    pub horizontal: bool,
+    pub frame_w: i32,
+    pub frame_h: i32,
+    pub cols: usize,
+    pub col_widths: Vec<i32>,
+    pub title_h: i32,
 }
 
 /// Extra top margin so the legend sits above the title and never covers a curve.
@@ -166,7 +275,13 @@ pub(crate) fn legend_reserve_px(plot_w: i32, font_px: i32, entries: &[LegendEntr
     measured.frame_h + font_units(MPL_LEGEND_BORDER_AXES_PAD, font_px.max(1))
 }
 
-fn measure_legend(plot_w: i32, font_px: i32, entries: &[LegendEntry]) -> Option<MeasuredLegend> {
+fn measure_legend_styled(
+    plot_w: i32,
+    font_px: i32,
+    entries: &[LegendEntry],
+    ncols: usize,
+    title: Option<&str>,
+) -> Option<MeasuredLegend> {
     if entries.is_empty() || plot_w <= 1 {
         return None;
     }
@@ -187,30 +302,93 @@ fn measure_legend(plot_w: i32, font_px: i32, entries: &[LegendEntry]) -> Option<
     let label_spacing = font_units(MPL_LEGEND_LABEL_SPACING, font_px);
     let handle_len = font_units(MPL_LEGEND_HANDLE_LENGTH, font_px);
     let handle_text_pad = font_units(MPL_LEGEND_HANDLE_TEXT_PAD, font_px);
-    let rows = label_widths.len() as i32;
-    let text_w = label_widths.iter().copied().max().unwrap_or(0);
     let item_gap = label_spacing.max(font_units(0.8, font_px));
-    let horizontal_w = border_pad * 2
-        + label_widths
-            .iter()
-            .map(|width| handle_len + handle_text_pad + *width)
-            .sum::<i32>()
-        + item_gap * (rows - 1).max(0);
-    let vertical_w = border_pad * 2 + handle_len + handle_text_pad + text_w;
-    let horizontal = horizontal_w <= plot_w;
-    let frame_w = if horizontal { horizontal_w } else { vertical_w };
-    let frame_h = if horizontal {
-        border_pad * 2 + text_h
+
+    let title_h = if let Some(t) = title {
+        if !t.is_empty() {
+            text_h + label_spacing
+        } else {
+            0
+        }
     } else {
-        border_pad * 2 + rows * text_h + (rows - 1).max(0) * label_spacing
+        0
     };
-    Some(MeasuredLegend {
-        label_widths,
-        text_h,
-        horizontal,
-        frame_w,
-        frame_h,
-    })
+
+    let title_w = if let Some(t) = title {
+        match font.layout_box(t) {
+            Ok(((min_x, _), (max_x, _))) => (max_x - min_x).max(1),
+            Err(_) => font_px * t.chars().count() as i32 / 2,
+        }
+    } else {
+        0
+    };
+
+    if ncols > 1 {
+        let cols = ncols.min(entries.len()).max(1);
+        let rows = (entries.len() + cols - 1) / cols;
+        let mut col_widths = vec![0; cols];
+        for (i, &w) in label_widths.iter().enumerate() {
+            let col = i % cols;
+            col_widths[col] = col_widths[col].max(w);
+        }
+        let content_w: i32 = col_widths
+            .iter()
+            .map(|w| handle_len + handle_text_pad + w)
+            .sum::<i32>()
+            + item_gap * (cols as i32 - 1).max(0);
+        let frame_w = (border_pad * 2 + content_w).max(title_w + border_pad * 2);
+        let frame_h = border_pad * 2
+            + rows as i32 * text_h
+            + (rows as i32 - 1).max(0) * label_spacing
+            + title_h;
+        Some(MeasuredLegend {
+            label_widths,
+            text_h,
+            horizontal: false,
+            frame_w,
+            frame_h,
+            cols,
+            col_widths,
+            title_h,
+        })
+    } else {
+        let rows = label_widths.len() as i32;
+        let text_w = label_widths.iter().copied().max().unwrap_or(0);
+        let horizontal_w = border_pad * 2
+            + label_widths
+                .iter()
+                .map(|width| handle_len + handle_text_pad + *width)
+                .sum::<i32>()
+            + item_gap * (rows - 1).max(0);
+        let vertical_w = border_pad * 2 + handle_len + handle_text_pad + text_w;
+        let horizontal = horizontal_w <= plot_w && title.is_none();
+        let frame_w =
+            (if horizontal { horizontal_w } else { vertical_w }).max(title_w + border_pad * 2);
+        let frame_h = if horizontal {
+            border_pad * 2 + text_h
+        } else {
+            border_pad * 2 + rows * text_h + (rows - 1).max(0) * label_spacing + title_h
+        };
+        let col_widths = if horizontal {
+            label_widths.clone()
+        } else {
+            vec![text_w]
+        };
+        Some(MeasuredLegend {
+            label_widths,
+            text_h,
+            horizontal,
+            frame_w,
+            frame_h,
+            cols: if horizontal { entries.len() } else { 1 },
+            col_widths,
+            title_h,
+        })
+    }
+}
+
+fn measure_legend(plot_w: i32, font_px: i32, entries: &[LegendEntry]) -> Option<MeasuredLegend> {
+    measure_legend_styled(plot_w, font_px, entries, 1, None)
 }
 
 /// `left, top, right, bottom` in plot-local pixels. Negative y is above the axes.
@@ -227,6 +405,30 @@ fn legend_frame_above(
     (left, top, right, bottom)
 }
 
+fn legend_frame_inside(
+    loc: LegendLoc,
+    axes_w: i32,
+    axes_h: i32,
+    measured: &MeasuredLegend,
+    pad: i32,
+) -> (i32, i32, i32, i32) {
+    let w = measured.frame_w;
+    let h = measured.frame_h;
+    let (left, top) = match loc {
+        LegendLoc::OutsideTop => ((axes_w - w) / 2, -h - pad),
+        LegendLoc::UpperRight | LegendLoc::Best => (axes_w - w - pad, pad),
+        LegendLoc::UpperLeft => (pad, pad),
+        LegendLoc::LowerLeft => (pad, axes_h - h - pad),
+        LegendLoc::LowerRight => (axes_w - w - pad, axes_h - h - pad),
+        LegendLoc::CenterLeft => (pad, (axes_h - h) / 2),
+        LegendLoc::CenterRight => (axes_w - w - pad, (axes_h - h) / 2),
+        LegendLoc::LowerCenter => ((axes_w - w) / 2, axes_h - h - pad),
+        LegendLoc::UpperCenter => ((axes_w - w) / 2, pad),
+        LegendLoc::Center => ((axes_w - w) / 2, (axes_h - h) / 2),
+    };
+    (left, top, left + w, top + h)
+}
+
 fn font_units(fraction: f64, font_px: i32) -> i32 {
     (fraction * font_px as f64).round().max(1.0) as i32
 }
@@ -239,18 +441,26 @@ pub fn draw_legend<DB: DrawingBackend>(
     axes_left: i32,
     axes_top: i32,
     axes_w: i32,
+    axes_h: i32,
     clearance_px: i32,
+    style: &LegendStyle,
 ) -> Result<(), &'static str> {
-    // Shapes drawn on the axes area are clipped, so a legend above the title
-    // has to be painted on the panel in cell pixels. Text would otherwise
-    // escape the clip and leave the handles stuck on the top spine.
     let font_px = font_px.max(1);
-    let Some(measured) = measure_legend(axes_w, font_px, entries) else {
+    let Some(measured) = measure_legend_styled(
+        axes_w,
+        font_px,
+        entries,
+        style.ncols,
+        style.title.as_deref(),
+    ) else {
         return Ok(());
     };
     let gap = font_units(MPL_LEGEND_BORDER_AXES_PAD, font_px);
-    let (rel_left, rel_top, rel_right, rel_bottom) =
-        legend_frame_above(axes_w, &measured, clearance_px + gap);
+    let (rel_left, rel_top, rel_right, rel_bottom) = if style.loc == LegendLoc::OutsideTop {
+        legend_frame_above(axes_w, &measured, clearance_px + gap)
+    } else {
+        legend_frame_inside(style.loc, axes_w, axes_h, &measured, gap)
+    };
     let left = axes_left + rel_left;
     let right = axes_left + rel_right;
     let top = axes_top + rel_top;
@@ -264,32 +474,50 @@ pub fn draw_legend<DB: DrawingBackend>(
     let text_h = measured.text_h;
     let fill = RGBColor(255, 255, 255);
     let edge = RGBColor(MPL_SPINE.0, MPL_SPINE.1, MPL_SPINE.2);
-    plot.draw(&Rectangle::new(
-        [(left, top), (right, bottom)],
-        ShapeStyle {
-            color: fill.to_rgba(),
-            filled: true,
-            stroke_width: 0,
-        },
-    ))
-    .map_err(|_| "failed to draw legend frame")?;
-    plot.draw(&PathElement::new(
-        vec![
-            (left, top),
-            (right, top),
-            (right, bottom),
-            (left, bottom),
-            (left, top),
-        ],
-        edge.stroke_width(stroke_width_px(0.8, dpi)),
-    ))
-    .map_err(|_| "failed to draw legend border")?;
+
+    if style.frameon {
+        plot.draw(&Rectangle::new(
+            [(left, top), (right, bottom)],
+            ShapeStyle {
+                color: fill.to_rgba(),
+                filled: true,
+                stroke_width: 0,
+            },
+        ))
+        .map_err(|_| "failed to draw legend frame")?;
+        plot.draw(&PathElement::new(
+            vec![
+                (left, top),
+                (right, top),
+                (right, bottom),
+                (left, bottom),
+                (left, top),
+            ],
+            edge.stroke_width(stroke_width_px(0.8, dpi)),
+        ))
+        .map_err(|_| "failed to draw legend border")?;
+    }
 
     let font: FontDesc<'static> = (MPL_FONT, font_px).into_font();
     let text_style = TextStyle::from(font).pos(Pos::new(HPos::Left, VPos::Center));
+
+    let mut content_top = top + border_pad;
+    if let Some(ref title_str) = style.title {
+        if !title_str.is_empty() {
+            let title_font: FontDesc<'static> = (MPL_FONT, font_px).into_font();
+            let title_style =
+                TextStyle::from(title_font).pos(Pos::new(HPos::Center, VPos::Center));
+            let center_x = (left + right) / 2;
+            let center_y = content_top + text_h / 2;
+            plot.draw_text(title_str, &title_style, (center_x, center_y))
+                .map_err(|_| "failed to draw legend title")?;
+            content_top += measured.title_h;
+        }
+    }
+
     if measured.horizontal {
         let mut cursor = left + border_pad;
-        let row_cy = top + border_pad + text_h / 2;
+        let row_cy = content_top + text_h / 2;
         for (entry, width) in entries.iter().zip(measured.label_widths.iter()) {
             let handle_x1 = cursor + handle_len;
             if entry.patch {
@@ -308,10 +536,20 @@ pub fn draw_legend<DB: DrawingBackend>(
         return Ok(());
     }
 
+    let cols = measured.cols;
+    let mut col_offsets = Vec::with_capacity(cols);
+    let mut running_x = left + border_pad;
+    for &cw in &measured.col_widths {
+        col_offsets.push(running_x);
+        running_x += handle_len + handle_text_pad + cw + item_gap;
+    }
+
     for (index, entry) in entries.iter().enumerate() {
-        let row_top = top + border_pad + index as i32 * (text_h + label_spacing);
+        let col = index % cols;
+        let row = index / cols;
+        let row_top = content_top + row as i32 * (text_h + label_spacing);
         let row_cy = row_top + text_h / 2;
-        let handle_x0 = left + border_pad;
+        let handle_x0 = col_offsets[col];
         let handle_x1 = handle_x0 + handle_len;
         if entry.patch {
             draw_legend_patch(plot, entry, handle_x0, handle_x1, row_cy, font_px, dpi)?;
@@ -456,6 +694,24 @@ fn draw_legend_line<DB: DrawingBackend>(
                 ))
                 .map_err(|_| "failed to draw legend marker")?;
             }
+            Marker::TriangleLeft => {
+                let h_top = (s as f64 * 1.2).round() as i32;
+                let h_bot = (s as f64 * 0.7).round() as i32;
+                plot.draw(&Polygon::new(
+                    vec![(cx - h_top, y), (cx + h_bot, y - s), (cx + h_bot, y + s)],
+                    m_style,
+                ))
+                .map_err(|_| "failed to draw legend marker")?;
+            }
+            Marker::TriangleRight => {
+                let h_top = (s as f64 * 1.2).round() as i32;
+                let h_bot = (s as f64 * 0.7).round() as i32;
+                plot.draw(&Polygon::new(
+                    vec![(cx + h_top, y), (cx - h_bot, y - s), (cx - h_bot, y + s)],
+                    m_style,
+                ))
+                .map_err(|_| "failed to draw legend marker")?;
+            }
             Marker::Diamond => {
                 let sy = (s as f64 * 1.3).round() as i32;
                 let sx = (s as f64 * 0.9).round() as i32;
@@ -479,6 +735,55 @@ fn draw_legend_line<DB: DrawingBackend>(
                     ));
                 }
                 plot.draw(&Polygon::new(pts, m_style))
+                    .map_err(|_| "failed to draw legend marker")?;
+            }
+            Marker::Pentagon => {
+                let mut pts = Vec::with_capacity(5);
+                for i in 0..5 {
+                    let angle = (i as f64) * 2.0 * std::f64::consts::PI / 5.0
+                        - std::f64::consts::FRAC_PI_2;
+                    pts.push((
+                        cx + (s as f64 * angle.cos()).round() as i32,
+                        y + (s as f64 * angle.sin()).round() as i32,
+                    ));
+                }
+                plot.draw(&Polygon::new(pts, m_style))
+                    .map_err(|_| "failed to draw legend marker")?;
+            }
+            Marker::Hexagon => {
+                let mut pts = Vec::with_capacity(6);
+                for i in 0..6 {
+                    let angle =
+                        (i as f64) * std::f64::consts::PI / 3.0 - std::f64::consts::FRAC_PI_2;
+                    pts.push((
+                        cx + (s as f64 * angle.cos()).round() as i32,
+                        y + (s as f64 * angle.sin()).round() as i32,
+                    ));
+                }
+                plot.draw(&Polygon::new(pts, m_style))
+                    .map_err(|_| "failed to draw legend marker")?;
+            }
+            Marker::Point => {
+                let r_pt = (r / 2).max(1);
+                plot.draw(&Circle::new((cx, y), r_pt, m_style))
+                    .map_err(|_| "failed to draw legend marker")?;
+            }
+            Marker::VLine => {
+                let v_style = ShapeStyle {
+                    color: entry.color.to_rgba(),
+                    filled: false,
+                    stroke_width: stroke_width_px(1.2, dpi),
+                };
+                plot.draw(&PathElement::new(vec![(cx, y - s), (cx, y + s)], v_style))
+                    .map_err(|_| "failed to draw legend marker")?;
+            }
+            Marker::HLine => {
+                let h_style = ShapeStyle {
+                    color: entry.color.to_rgba(),
+                    filled: false,
+                    stroke_width: stroke_width_px(1.2, dpi),
+                };
+                plot.draw(&PathElement::new(vec![(cx - s, y), (cx + s, y)], h_style))
                     .map_err(|_| "failed to draw legend marker")?;
             }
         }

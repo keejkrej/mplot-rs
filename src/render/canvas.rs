@@ -186,7 +186,8 @@ fn draw_panel_in_area<DB: DrawingBackend>(
         Vec::new()
     };
     let legend_width = (area_width_px as i32 - label_left as i32 - chart_margin * 2).max(1);
-    let legend_gap = if legend_entries.is_empty() {
+    let is_outside_top = panel.legend_style.loc == crate::panel::LegendLoc::OutsideTop;
+    let legend_gap = if legend_entries.is_empty() || !is_outside_top {
         0
     } else {
         legend_reserve_px(legend_width, tick_px as i32, &legend_entries)
@@ -317,7 +318,7 @@ fn draw_panel_in_area<DB: DrawingBackend>(
 
     // Close the box (top + right). Left/bottom already stroked by mesh with
     // the same axis_style — redrawing them would double the weight.
-    draw_open_spines(&mut chart, xmin, xmax, ymin, ymax, spine, figure.dpi)?;
+    draw_open_spines(&mut chart, xmin, xmax, ymin, ymax, spine, panel.spines, figure.dpi)?;
 
     if let Some((normalize, colormap)) = colorbar {
         if bar_px > 0 {
@@ -334,7 +335,7 @@ fn draw_panel_in_area<DB: DrawingBackend>(
     }
 
     if !legend_entries.is_empty() {
-        let (axes_w, _) = chart.plotting_area().dim_in_pixel();
+        let (axes_w, axes_h) = chart.plotting_area().dim_in_pixel();
         draw_legend(
             &plot_area,
             &legend_entries,
@@ -343,7 +344,9 @@ fn draw_panel_in_area<DB: DrawingBackend>(
             chart_margin + label_left as i32,
             chart_margin + title_band + legend_gap,
             axes_w as i32,
+            axes_h as i32,
             title_band,
+            &panel.legend_style,
         )?;
     }
 
@@ -405,7 +408,7 @@ fn draw_colorbar_in_area<DB: DrawingBackend>(
     Ok(())
 }
 
-/// Top + right spines (left/bottom come from plotters mesh when axes enabled).
+/// Spines drawing (respecting SpinesStyle).
 fn draw_open_spines<DB: DrawingBackend>(
     chart: &mut Chart<'_, DB>,
     xmin: f64,
@@ -413,15 +416,38 @@ fn draw_open_spines<DB: DrawingBackend>(
     ymin: f64,
     ymax: f64,
     spine: RGBColor,
+    spines: crate::panel::SpinesStyle,
     dpi: u32,
 ) -> Result<(), &'static str> {
     let style = spine.stroke_width(stroke_width_px(MPL_AXES_LINE_WIDTH, dpi));
-    chart
-        .draw_series([
-            PathElement::new(vec![(xmin, ymax), (xmax, ymax)], style), // top
-            PathElement::new(vec![(xmax, ymin), (xmax, ymax)], style), // right
-        ])
-        .map_err(|_| "failed to draw spines")?;
+    let mut paths = Vec::new();
+    if spines.top {
+        paths.push(PathElement::new(vec![(xmin, ymax), (xmax, ymax)], style));
+    }
+    if spines.right {
+        paths.push(PathElement::new(vec![(xmax, ymin), (xmax, ymax)], style));
+    }
+    if !paths.is_empty() {
+        chart
+            .draw_series(paths)
+            .map_err(|_| "failed to draw spines")?;
+    }
+    if !spines.left {
+        let bg_style = ShapeStyle {
+            color: RGBAColor(255, 255, 255, 1.0),
+            filled: false,
+            stroke_width: stroke_width_px(MPL_AXES_LINE_WIDTH + 1.0, dpi),
+        };
+        let _ = chart.draw_series([PathElement::new(vec![(xmin, ymin), (xmin, ymax)], bg_style)]);
+    }
+    if !spines.bottom {
+        let bg_style = ShapeStyle {
+            color: RGBAColor(255, 255, 255, 1.0),
+            filled: false,
+            stroke_width: stroke_width_px(MPL_AXES_LINE_WIDTH + 1.0, dpi),
+        };
+        let _ = chart.draw_series([PathElement::new(vec![(xmin, ymin), (xmax, ymin)], bg_style)]);
+    }
     Ok(())
 }
 

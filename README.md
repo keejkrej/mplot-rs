@@ -48,6 +48,7 @@ cargo run --example scatter_errorbar
 cargo run --example bar_histogram
 cargo run --example violin_plot
 cargo run --example gridspec_layout
+cargo run --example advanced_plots
 cargo run --example gallery
 ```
 
@@ -56,10 +57,10 @@ cargo run --example gallery
 | Type | Role |
 |------|------|
 | `Figure` / `FigureBuilder` | Root document; size, panels, export |
-| `PanelBuilder` | One subplot: add series (`line`, `scatter`, `errorbar`, `step`, `boxplot`, `violinplot`, `bar`, `barh`, `histogram`, `fill_between`, `image`, `contour`, `annotate`, `axhline`, `axvline`, `axhspan`, `axvspan`) + attach `AxesStyle` |
-| `Series` | Enum of plot kinds (`Line`, `Scatter`, `ErrorBar`, `Step`, `Boxplot`, `Violin`, `Bar`, `BarH`, `Annotation`, …) |
-| `LineStyle`, `ScatterStyle`, `ErrorBarStyle`, `ViolinStyle`, … | Per-series styling |
-| `AxesStyle` | Labels, scales, limits, inverted axes, ticks, grid (`GridStyle`) |
+| `PanelBuilder` | One subplot: add series (`line`, `scatter`, `errorbar`, `step`, `stem`, `stackplot`, `stairs`, `quiver`, `pie`, `hist2d`, `hlines`, `vlines`, `eventplot`, `boxplot`, `violinplot`, `bar`, `barh`, `histogram`, `fill_between`, `fill_betweenx`, `image`, `contour`, `annotate`, `axline`, `axhline`, `axvline`, `axhspan`, `axvspan`) + attach `AxesStyle` |
+| `Series` | Enum of plot kinds (`Line`, `Scatter`, `ErrorBar`, `Step`, `Stem`, `Stackplot`, `Stairs`, `Quiver`, `Pie`, `Hist2D`, `HLines`, `VLines`, `EventPlot`, `Boxplot`, `Violin`, `Bar`, `BarH`, `Annotation`, …) |
+| `LineStyle`, `ScatterStyle`, `StemStyle`, `StackplotStyle`, `StairsStyle`, `QuiverStyle`, `PieStyle`, `Hist2DStyle`, `EventplotStyle`, `BboxStyle`, … | Per-series styling |
+| `AxesStyle` | Labels, scales, limits, inverted axes, ticks, percentage & engineering formatting, spines control / `despine()`, legend positioning & columns, grid (`GridStyle`) |
 | `GridPos` | Subplot address (rows, cols, index) |
 | `GridSpec` / `SubplotSlot` | Irregular grids with rowspan/colspan |
 | `ExportFormat` | PNG, SVG, or PDF export (from path extension or `SaveOptions`) |
@@ -77,15 +78,18 @@ Import everything common via `use mplot::prelude::*;`.
 ## Features
 
 - Subplot grids via `GridPos` or `GridSpec` (rowspan/colspan)
-- Rich series: line, scatter, error bars (with caps), step curves, vertical/horizontal bar charts, histograms, shaded regions (`fill_between`, `axhspan`, `axvspan`), annotations with callout arrows (`annotate`), reference lines (`axhline`, `axvline`), boxplots, violin plots (KDE density, medians, extrema), heatmaps (`image`), and contour lines
+- Comprehensive series: line, scatter (variable sizes & colormapped values), error bars (with caps), stem plots (vertical and horizontal), stacked area plots (`stackplot`), step curves, stairs plots, 2D vector fields (`quiver`), pie charts (with explosion and autopct), 2D histograms (`hist2d`), horizontal and vertical line segments (`hlines`, `vlines`), event/raster plots (`eventplot`), vertical/horizontal stacked bars (`bottom` and `left`), bar error bars (`yerr` and `xerr`), histograms, shaded regions (`fill_between`, `fill_betweenx`, `axhspan`, `axvspan`), annotations with callout arrows and bounding boxes (`annotate`, `BboxStyle`), reference lines (`axline`, `axhline`, `axvline`), boxplots, violin plots (KDE density, medians, extrema), heatmaps (`image`), and contour lines
+- Axes spine visibility & styling (`AxesStyle::despine()` to hide top/right spines, or `spines_visible(top, right, bottom, left)`)
+- Legend styling & placement (`LegendLoc::UpperRight`, `LowerLeft`, `Center`, etc., `ncols`, `title`, and `frameon`)
+- Tick formatting (`TickFormat::Percent`, `TickFormat::Engineering`, scientific, custom closures)
 - Inverted axes and reverse ranges (`invert_x(true)`, `invert_y(true)`, or `y_range(max, min)`)
 - Custom grid styling (`GridStyle::new().color(...).width(...).alpha(...)`)
 - PNG, SVG, and PDF export (`figure.save("out.pdf", …)`)
 - Constrained layout for multi-panel figures and colorbar insets (`.constrained_layout(true)`)
 - Linear and log x/y scales (`Scale::Log` on `AxesStyle::x_scale` / `y_scale`)
 - Custom tick labels and rotated tick labels (`AxesStyle::x_tick_labels`, `AxesStyle::x_tick_rotation`)
-- Matplotlib standard markers: `Circle`, `Square`, `Cross`, `Plus`, `TriangleUp`, `TriangleDown`, `Diamond`, `Star`
-- Perceptual colormaps: `Viridis`, `Plasma`, `Inferno`, `Magma`, `Cividis`, `Coolwarm`, `Turbo`
+- Matplotlib standard markers: `Circle`, `Square`, `Cross`, `Plus`, `TriangleUp`, `TriangleDown`, `TriangleLeft`, `TriangleRight`, `Diamond`, `Star`, `Pentagon`, `Hexagon`, `Point`, `VLine`, `HLine`
+- Perceptual and sequential colormaps: `Viridis`, `Plasma`, `Inferno`, `Magma`, `Cividis`, `Coolwarm`, `Turbo`, `Greys`, `Blues`, `Reds`, `Spectral`, `RdBu`, `YlGnBu`, and reversed variants (`.reversed()`)
 - Figure size in inches (`Size::inches`); PNG saves default to **200 DPI** for sharp text (override with `SaveOptions::dpi`)
 - Matplotlib-inspired default styling (DejaVu Sans, default line width, boxplot colors, axes titles centered on axes box)
 
@@ -93,7 +97,7 @@ Import everything common via `use mplot::prelude::*;`.
 
 `.venv/bin/python scripts/mpl_reference.py` generates Matplotlib reference PNGs under `tests/fidelity/golden/` (uses explicit rcParams synced with `src/render/mpl_style.rs`). Run `cargo test --test fidelity` to compare mplot output against those references.
 
-Covered chart types: line, subplots, boxplot (linear/log y), violin plot, bar, horizontal bar, histogram, fill_between, image (viridis), contour, scatter, step, errorbar, and log-x / log-log line plots.
+Covered chart types: line, subplots, boxplot (linear/log y), violin plot, bar, horizontal bar, histogram, fill_between, image (viridis), contour, scatter, step, stem, errorbar, and log-x / log-log line plots.
 
 See the rcParams mapping table in [`src/render/mpl_style.rs`](src/render/mpl_style.rs).
 
