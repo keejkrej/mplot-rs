@@ -50,17 +50,23 @@ pub(crate) fn box_stats(values: &[f64], whisker: f64) -> Option<BoxStats> {
         let max_val = wiskhi_candidates
             .into_iter()
             .fold(f64::NEG_INFINITY, f64::max);
-        if max_val < q3 { q3 } else { max_val }
+        if max_val < q3 {
+            q3
+        } else {
+            max_val
+        }
     };
 
     let wisklo_candidates: Vec<f64> = data.iter().copied().filter(|v| *v >= loval).collect();
     let whislo = if wisklo_candidates.is_empty() {
         q1
     } else {
-        let min_val = wisklo_candidates
-            .into_iter()
-            .fold(f64::INFINITY, f64::min);
-        if min_val > q1 { q1 } else { min_val }
+        let min_val = wisklo_candidates.into_iter().fold(f64::INFINITY, f64::min);
+        if min_val > q1 {
+            q1
+        } else {
+            min_val
+        }
     };
 
     let fliers: Vec<f64> = data

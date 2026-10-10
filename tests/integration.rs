@@ -44,12 +44,11 @@ fn test_boxplot() -> Result<()> {
 
     let figure = Figure::builder()
         .panel(GridPos::new(1, 1, 1), |p| {
-            p.boxplot(&data, BoxplotStyle::new())
-                .axes(
-                    AxesStyle::new()
-                        .title("boxplot test")
-                        .x_tick_labels(&ticks, &labels),
-                );
+            p.boxplot(&data, BoxplotStyle::new()).axes(
+                AxesStyle::new()
+                    .title("boxplot test")
+                    .x_tick_labels(&ticks, &labels),
+            );
         })
         .build()?;
 
@@ -74,16 +73,12 @@ fn test_legend() -> Result<()> {
             p.line(
                 &x,
                 &y1,
-                LineStyle::new()
-                    .color(Color::TABLEAU[0])
-                    .label("up"),
+                LineStyle::new().color(Color::TABLEAU[0]).label("up"),
             )
             .line(
                 &x,
                 &y2,
-                LineStyle::new()
-                    .color(Color::TABLEAU[1])
-                    .label("down"),
+                LineStyle::new().color(Color::TABLEAU[1]).label("down"),
             )
             .axes(
                 AxesStyle::new()
@@ -143,8 +138,12 @@ fn test_legend_on_a_long_time_axis() -> Result<()> {
             );
         })
         .panel(GridPos::new(2, 2, 2), |p| {
-            p.line(&x, &mean, LineStyle::new())
-                .axes(AxesStyle::new().title("other").x_range(0.0, 1000.0).y_range(-1.0, 1.0));
+            p.line(&x, &mean, LineStyle::new()).axes(
+                AxesStyle::new()
+                    .title("other")
+                    .x_range(0.0, 1000.0)
+                    .y_range(-1.0, 1.0),
+            );
         })
         .panel(GridPos::new(2, 2, 3), |p| {
             p.line(&x, &mean, LineStyle::new())
@@ -195,9 +194,7 @@ fn test_bar() -> Result<()> {
             p.bar(
                 &x,
                 &heights,
-                BarStyle::new()
-                    .color(Color::TABLEAU[0])
-                    .label("counts"),
+                BarStyle::new().color(Color::TABLEAU[0]).label("counts"),
             )
             .axes(
                 AxesStyle::new()
@@ -647,5 +644,110 @@ fn test_new_colormaps_image() -> Result<()> {
         let metadata = std::fs::metadata(path).map_err(|_| Error::Io("output missing".into()))?;
         assert!(metadata.len() > 1_000);
     }
+    Ok(())
+}
+
+#[test]
+fn test_annotate() -> Result<()> {
+    std::fs::create_dir_all(OUT_DIR).ok();
+
+    let x = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0];
+    let y = [1.0, 2.0, 5.0, 3.0, 2.0, 1.0];
+
+    let figure = Figure::builder()
+        .panel(GridPos::new(1, 1, 1), |p| {
+            p.line(&x, &y, LineStyle::new())
+                .annotate(
+                    "Local Peak (x=2, y=5)",
+                    (2.0, 5.0),
+                    (3.0, 4.5),
+                    AnnotationStyle::new()
+                        .fontsize(11.0)
+                        .ha(HorizontalAlignment::Left)
+                        .va(VerticalAlignment::Center)
+                        .arrow(ArrowStyle::new().color(Color::hex("#d62728")).width(1.5)),
+                )
+                .axes(
+                    AxesStyle::new()
+                        .title("Annotated Curve")
+                        .x_label("x")
+                        .y_label("y"),
+                );
+        })
+        .build()?;
+
+    let path = Path::new(OUT_DIR).join("test_annotate.png");
+    figure.save(&path, SaveOptions::default())?;
+    let metadata = std::fs::metadata(path).map_err(|_| Error::Io("output missing".into()))?;
+    assert!(metadata.len() > 1_000);
+    Ok(())
+}
+
+#[test]
+fn test_inverted_axes() -> Result<()> {
+    std::fs::create_dir_all(OUT_DIR).ok();
+
+    let depths = [0.0, 50.0, 100.0, 150.0, 200.0];
+    let temps = [25.0, 21.0, 16.0, 10.0, 4.0];
+
+    let figure = Figure::builder()
+        .panel(GridPos::new(1, 2, 1), |p| {
+            p.line(&temps, &depths, LineStyle::new().color(Color::TABLEAU[0]))
+                .axes(
+                    AxesStyle::new()
+                        .title("Depth Profile (invert_y)")
+                        .x_label("temperature (C)")
+                        .y_label("depth (m)")
+                        .invert_y(true),
+                );
+        })
+        .panel(GridPos::new(1, 2, 2), |p| {
+            p.line(&temps, &depths, LineStyle::new().color(Color::TABLEAU[1]))
+                .axes(
+                    AxesStyle::new()
+                        .title("Reversed Range")
+                        .x_label("temperature (C)")
+                        .y_label("depth (m)")
+                        .y_range(250.0, 0.0),
+                );
+        })
+        .build()?;
+
+    let path = Path::new(OUT_DIR).join("test_inverted_axes.png");
+    figure.save(&path, SaveOptions::default())?;
+    let metadata = std::fs::metadata(path).map_err(|_| Error::Io("output missing".into()))?;
+    assert!(metadata.len() > 1_000);
+    Ok(())
+}
+
+#[test]
+fn test_grid_style() -> Result<()> {
+    std::fs::create_dir_all(OUT_DIR).ok();
+
+    let x = [0.0, 1.0, 2.0, 3.0, 4.0];
+    let y = [10.0, 15.0, 13.0, 18.0, 22.0];
+
+    let figure = Figure::builder()
+        .panel(GridPos::new(1, 1, 1), |p| {
+            p.line(&x, &y, LineStyle::new().color(Color::TABLEAU[0]))
+                .axes(
+                    AxesStyle::new()
+                        .title("Custom Grid")
+                        .x_label("x")
+                        .y_label("y")
+                        .grid_style(
+                            GridStyle::new()
+                                .color(Color::hex("#1f77b4"))
+                                .width(1.2)
+                                .alpha(0.5),
+                        ),
+                );
+        })
+        .build()?;
+
+    let path = Path::new(OUT_DIR).join("test_grid_style.png");
+    figure.save(&path, SaveOptions::default())?;
+    let metadata = std::fs::metadata(path).map_err(|_| Error::Io("output missing".into()))?;
+    assert!(metadata.len() > 1_000);
     Ok(())
 }

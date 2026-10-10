@@ -9,14 +9,21 @@ fn main() -> Result<()> {
     let figure = Figure::builder()
         .panel(GridPos::new(1, 2, 1), |p| {
             p.bar(&x, &heights, BarStyle::new().color(Color::TABLEAU[0]))
-                .axes(AxesStyle::new().title("Bar chart").x_label("x").y_label("height"));
+                .axes(
+                    AxesStyle::new()
+                        .title("Bar chart")
+                        .x_label("x")
+                        .y_label("height"),
+                );
         })
         .panel(GridPos::new(1, 2, 2), |p| {
-            p.histogram(
-                &data,
-                HistStyle::new().bins(6).color(Color::TABLEAU[1]),
-            )
-            .axes(AxesStyle::new().title("Histogram").x_label("value").y_label("count"));
+            p.histogram(&data, HistStyle::new().bins(6).color(Color::TABLEAU[1]))
+                .axes(
+                    AxesStyle::new()
+                        .title("Histogram")
+                        .x_label("value")
+                        .y_label("count"),
+                );
         })
         .build()?;
 

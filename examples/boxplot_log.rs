@@ -12,15 +12,14 @@ fn main() -> Result<()> {
     let figure = Figure::builder()
         .size(Size::inches(8.0, 6.0))
         .panel(GridPos::new(1, 1, 1), |p| {
-            p.boxplot(&groups, BoxplotStyle::new())
-                .axes(
-                    AxesStyle::new()
-                        .title("Boxplot (log y)")
-                        .x_label("category")
-                        .y_label("value")
-                        .x_tick_labels(&ticks, &labels)
-                        .y_scale(Scale::Log),
-                );
+            p.boxplot(&groups, BoxplotStyle::new()).axes(
+                AxesStyle::new()
+                    .title("Boxplot (log y)")
+                    .x_label("category")
+                    .y_label("value")
+                    .x_tick_labels(&ticks, &labels)
+                    .y_scale(Scale::Log),
+            );
         })
         .build()?;
 

@@ -6,8 +6,8 @@ use crate::constants::{
     DEFAULT_HORIZONTAL_GAP, DEFAULT_TICK_FONT_SIZE, DEFAULT_VERTICAL_GAP,
 };
 use crate::error::{Error, Result};
-use crate::panel::{configure_panel, AxesStyle, PanelBuilder, PanelSpec};
 use crate::gridspec::SubplotSlot;
+use crate::panel::{configure_panel, AxesStyle, PanelBuilder, PanelSpec};
 
 /// Figure dimensions.
 #[derive(Clone, Copy, Debug, PartialEq)]

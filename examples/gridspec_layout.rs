@@ -22,7 +22,12 @@ fn main() -> Result<()> {
                 &[2.0, 5.0, 3.0],
                 BarStyle::new().color(Color::TABLEAU[2]),
             )
-            .axes(AxesStyle::new().title("bottom span").x_label("x").y_label("y"));
+            .axes(
+                AxesStyle::new()
+                    .title("bottom span")
+                    .x_label("x")
+                    .y_label("y"),
+            );
         })
         .build()?;
 

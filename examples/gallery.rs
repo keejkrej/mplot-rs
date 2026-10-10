@@ -43,12 +43,7 @@ fn write_subplot_grid(path: &str) -> Result<()> {
     for (index, (title, color, ys)) in panels.iter().enumerate() {
         builder = builder.panel(GridPos::new(1, 2, index + 1), |p| {
             p.line(&xs, ys, LineStyle::new().color(*color))
-                .axes(
-                    AxesStyle::new()
-                        .title(*title)
-                        .x_label("x")
-                        .y_label("y"),
-                );
+                .axes(AxesStyle::new().title(*title).x_label("x").y_label("y"));
         });
     }
 
@@ -62,14 +57,13 @@ fn write_boxplot(path: &str) -> Result<()> {
 
     Figure::builder()
         .panel(GridPos::new(1, 1, 1), |p| {
-            p.boxplot(&groups, BoxplotStyle::new())
-                .axes(
-                    AxesStyle::new()
-                        .title("Two-group boxplot")
-                        .x_label("group")
-                        .y_label("measurement")
-                        .x_tick_labels(&ticks, &labels),
-                );
+            p.boxplot(&groups, BoxplotStyle::new()).axes(
+                AxesStyle::new()
+                    .title("Two-group boxplot")
+                    .x_label("group")
+                    .y_label("measurement")
+                    .x_tick_labels(&ticks, &labels),
+            );
         })
         .build()?
         .save(path, SaveOptions::default())

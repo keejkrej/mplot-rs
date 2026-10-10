@@ -98,11 +98,7 @@ fn interpolate_stops(t: f64, stops: &[(f64, u8, u8, u8)]) -> Color {
             } else {
                 (t - t0) / (t1 - t0)
             };
-            return Color::rgb(
-                lerp_u8(r0, r1, w),
-                lerp_u8(g0, g1, w),
-                lerp_u8(b0, b1, w),
-            );
+            return Color::rgb(lerp_u8(r0, r1, w), lerp_u8(g0, g1, w), lerp_u8(b0, b1, w));
         }
     }
     let (_, r, g, b) = stops[stops.len() - 1];

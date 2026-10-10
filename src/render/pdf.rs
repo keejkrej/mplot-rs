@@ -10,8 +10,8 @@ pub fn render(figure: &CompiledFigure, path: &Path) -> Result<(), &'static str> 
 
     let mut options = svg2pdf::usvg::Options::default();
     options.fontdb_mut().load_system_fonts();
-    let tree = svg2pdf::usvg::Tree::from_str(&svg, &options)
-        .map_err(|_| "failed to parse svg for pdf")?;
+    let tree =
+        svg2pdf::usvg::Tree::from_str(&svg, &options).map_err(|_| "failed to parse svg for pdf")?;
 
     let page_options = PageOptions {
         dpi: figure.dpi as f32,
@@ -34,11 +34,7 @@ mod tests {
     fn pdf_export_produces_bytes() -> Result<()> {
         let figure = Figure::builder()
             .panel(GridPos::new(1, 1, 1), |p| {
-                p.line(
-                    &[0.0, 1.0, 2.0],
-                    &[0.0, 1.0, 4.0],
-                    LineStyle::new(),
-                );
+                p.line(&[0.0, 1.0, 2.0], &[0.0, 1.0, 4.0], LineStyle::new());
             })
             .build()?;
         let compiled = crate::compile::build(&figure, &SaveOptions::default())?;

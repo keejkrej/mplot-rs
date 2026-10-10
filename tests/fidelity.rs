@@ -1,8 +1,9 @@
 //! Golden-image fidelity tests against matplotlib reference PNGs.
 
 use mplot::prelude::{
-    AxesStyle, BarStyle, BoxplotStyle, Colormap, Color, ContourStyle, Figure, FillBetweenStyle,
-    GridPos, HistStyle, ImageStyle, LineStyle, SaveOptions, Scale, Size,
+    AxesStyle, BarHStyle, BarStyle, BoxplotStyle, Color, Colormap, ContourStyle, ErrorBarStyle,
+    Figure, FillBetweenStyle, GridPos, HistStyle, ImageStyle, LineStyle, SaveOptions, Scale,
+    ScatterStyle, Size, StepStyle, StepWhere,
 };
 use mplot::Result;
 use std::path::{Path, PathBuf};
@@ -54,14 +55,13 @@ fn render_subplot_lines(path: &Path) -> Result<()> {
     let mut builder = Figure::builder().size(Size::inches(10.0, 8.0));
     for (index, (title, color, ys)) in panels.iter().enumerate() {
         builder = builder.panel(GridPos::new(rows, cols, index + 1), |p| {
-            p.line(&xs, ys, LineStyle::new().color(*color))
-                .axes(
-                    AxesStyle::new()
-                        .title(*title)
-                        .x_label("x")
-                        .y_label("y")
-                        .y_range(0.0, 3.0),
-                );
+            p.line(&xs, ys, LineStyle::new().color(*color)).axes(
+                AxesStyle::new()
+                    .title(*title)
+                    .x_label("x")
+                    .y_label("y")
+                    .y_range(0.0, 3.0),
+            );
         });
     }
 
@@ -79,14 +79,13 @@ fn render_boxplot_linear(path: &Path) -> Result<()> {
 
     Figure::builder()
         .panel(GridPos::new(1, 1, 1), |p| {
-            p.boxplot(&groups, BoxplotStyle::new())
-                .axes(
-                    AxesStyle::new()
-                        .title("Boxplot (linear y)")
-                        .x_label("category")
-                        .y_label("value")
-                        .x_tick_labels(&ticks, &labels),
-                );
+            p.boxplot(&groups, BoxplotStyle::new()).axes(
+                AxesStyle::new()
+                    .title("Boxplot (linear y)")
+                    .x_label("category")
+                    .y_label("value")
+                    .x_tick_labels(&ticks, &labels),
+            );
         })
         .build()?
         .save(path, fidelity_save_options())
@@ -104,15 +103,14 @@ fn render_boxplot_log(path: &Path) -> Result<()> {
     Figure::builder()
         .size(Size::inches(8.0, 6.0))
         .panel(GridPos::new(1, 1, 1), |p| {
-            p.boxplot(&groups, BoxplotStyle::new())
-                .axes(
-                    AxesStyle::new()
-                        .title("Boxplot (log y)")
-                        .x_label("category")
-                        .y_label("value")
-                        .x_tick_labels(&ticks, &labels)
-                        .y_scale(Scale::Log),
-                );
+            p.boxplot(&groups, BoxplotStyle::new()).axes(
+                AxesStyle::new()
+                    .title("Boxplot (log y)")
+                    .x_label("category")
+                    .y_label("value")
+                    .x_tick_labels(&ticks, &labels)
+                    .y_scale(Scale::Log),
+            );
         })
         .build()?
         .save(path, fidelity_save_options())
@@ -147,12 +145,7 @@ fn render_gallery_subplots(path: &Path) -> Result<()> {
     for (index, (title, color, ys)) in panels.iter().enumerate() {
         builder = builder.panel(GridPos::new(1, 2, index + 1), |p| {
             p.line(&xs, ys, LineStyle::new().color(*color))
-                .axes(
-                    AxesStyle::new()
-                        .title(*title)
-                        .x_label("x")
-                        .y_label("y"),
-                );
+                .axes(AxesStyle::new().title(*title).x_label("x").y_label("y"));
         });
     }
 
@@ -166,14 +159,13 @@ fn render_gallery_boxplot(path: &Path) -> Result<()> {
 
     Figure::builder()
         .panel(GridPos::new(1, 1, 1), |p| {
-            p.boxplot(&groups, BoxplotStyle::new())
-                .axes(
-                    AxesStyle::new()
-                        .title("Two-group boxplot")
-                        .x_label("group")
-                        .y_label("measurement")
-                        .x_tick_labels(&ticks, &labels),
-                );
+            p.boxplot(&groups, BoxplotStyle::new()).axes(
+                AxesStyle::new()
+                    .title("Two-group boxplot")
+                    .x_label("group")
+                    .y_label("measurement")
+                    .x_tick_labels(&ticks, &labels),
+            );
         })
         .build()?
         .save(path, fidelity_save_options())
@@ -188,9 +180,7 @@ fn render_bar_chart(path: &Path) -> Result<()> {
             p.bar(
                 &x,
                 &heights,
-                BarStyle::new()
-                    .width(0.8)
-                    .color(Color::hex("#1f77b4")),
+                BarStyle::new().width(0.8).color(Color::hex("#1f77b4")),
             )
             .axes(
                 AxesStyle::new()
@@ -210,9 +200,7 @@ fn render_histogram(path: &Path) -> Result<()> {
         .panel(GridPos::new(1, 1, 1), |p| {
             p.histogram(
                 &data,
-                HistStyle::new()
-                    .bins(10)
-                    .color(Color::hex("#ff7f0e")),
+                HistStyle::new().bins(10).color(Color::hex("#ff7f0e")),
             )
             .axes(
                 AxesStyle::new()
@@ -252,9 +240,7 @@ fn render_fill_between(path: &Path) -> Result<()> {
 }
 
 fn render_image_viridis(path: &Path) -> Result<()> {
-    let data = vec![
-        0.0, 0.5, 1.0, 0.25, 0.75, 1.0, 0.0, 0.5, 1.0,
-    ];
+    let data = vec![0.0, 0.5, 1.0, 0.25, 0.75, 1.0, 0.0, 0.5, 1.0];
 
     Figure::builder()
         .panel(GridPos::new(1, 1, 1), |p| {
@@ -315,18 +301,14 @@ fn render_line_log_x(path: &Path) -> Result<()> {
 
     Figure::builder()
         .panel(GridPos::new(1, 1, 1), |p| {
-            p.line(
-                &x,
-                &y,
-                LineStyle::new().color(Color::hex("#1f77b4")),
-            )
-            .axes(
-                AxesStyle::new()
-                    .title("Log x line plot")
-                    .x_label("x")
-                    .y_label("y")
-                    .x_scale(Scale::Log),
-            );
+            p.line(&x, &y, LineStyle::new().color(Color::hex("#1f77b4")))
+                .axes(
+                    AxesStyle::new()
+                        .title("Log x line plot")
+                        .x_label("x")
+                        .y_label("y")
+                        .x_scale(Scale::Log),
+                );
         })
         .build()?
         .save(path, fidelity_save_options())
@@ -338,25 +320,115 @@ fn render_line_log_log(path: &Path) -> Result<()> {
 
     Figure::builder()
         .panel(GridPos::new(1, 1, 1), |p| {
-            p.line(
+            p.line(&x, &y, LineStyle::new().color(Color::hex("#ff7f0e")))
+                .axes(
+                    AxesStyle::new()
+                        .title("Log-log line plot")
+                        .x_label("x")
+                        .y_label("y")
+                        .x_scale(Scale::Log)
+                        .y_scale(Scale::Log),
+                );
+        })
+        .build()?
+        .save(path, fidelity_save_options())
+}
+
+fn render_scatter(path: &Path) -> Result<()> {
+    let x = [0.0, 1.0, 2.0, 3.0, 4.0];
+    let y = [1.0, 3.0, 2.0, 5.0, 4.0];
+
+    Figure::builder()
+        .panel(GridPos::new(1, 1, 1), |p| {
+            p.scatter(&x, &y, ScatterStyle::new().color(Color::hex("#1f77b4")))
+                .axes(
+                    AxesStyle::new()
+                        .title("Scatter plot")
+                        .x_label("x")
+                        .y_label("y"),
+                );
+        })
+        .build()?
+        .save(path, fidelity_save_options())
+}
+
+fn render_step(path: &Path) -> Result<()> {
+    let x = [0.0, 1.0, 2.0, 3.0, 4.0];
+    let y = [1.0, 3.0, 2.0, 4.0, 2.5];
+
+    Figure::builder()
+        .panel(GridPos::new(1, 1, 1), |p| {
+            p.step(
                 &x,
                 &y,
-                LineStyle::new().color(Color::hex("#ff7f0e")),
+                StepStyle::new()
+                    .color(Color::hex("#1f77b4"))
+                    .step_where(StepWhere::Pre),
             )
             .axes(
                 AxesStyle::new()
-                    .title("Log-log line plot")
+                    .title("Step plot")
                     .x_label("x")
-                    .y_label("y")
-                    .x_scale(Scale::Log)
-                    .y_scale(Scale::Log),
+                    .y_label("y"),
             );
         })
         .build()?
         .save(path, fidelity_save_options())
 }
 
-fn compare_pngs(actual: &Path, golden: &Path, max_mean_delta: f64) -> std::result::Result<(), String> {
+fn render_barh(path: &Path) -> Result<()> {
+    let y = [1.0, 2.0, 3.0, 4.0];
+    let widths = [3.0, 7.0, 5.0, 9.0];
+
+    Figure::builder()
+        .panel(GridPos::new(1, 1, 1), |p| {
+            p.barh(
+                &y,
+                &widths,
+                BarHStyle::new().height(0.8).color(Color::hex("#1f77b4")),
+            )
+            .axes(
+                AxesStyle::new()
+                    .title("Horizontal bar chart")
+                    .x_label("width")
+                    .y_label("y"),
+            );
+        })
+        .build()?
+        .save(path, fidelity_save_options())
+}
+
+fn render_errorbar(path: &Path) -> Result<()> {
+    let x = [0.0, 1.0, 2.0, 3.0, 4.0];
+    let y = [1.0, 2.5, 2.0, 4.0, 3.5];
+    let yerr = [0.2, 0.4, 0.3, 0.5, 0.3];
+
+    Figure::builder()
+        .panel(GridPos::new(1, 1, 1), |p| {
+            p.errorbar(
+                &x,
+                &y,
+                ErrorBarStyle::new()
+                    .color(Color::hex("#1f77b4"))
+                    .yerr(&yerr)
+                    .cap_size(3.0),
+            )
+            .axes(
+                AxesStyle::new()
+                    .title("Errorbar plot")
+                    .x_label("x")
+                    .y_label("y"),
+            );
+        })
+        .build()?
+        .save(path, fidelity_save_options())
+}
+
+fn compare_pngs(
+    actual: &Path,
+    golden: &Path,
+    max_mean_delta: f64,
+) -> std::result::Result<(), String> {
     let actual_img = image::open(actual).map_err(|err| err.to_string())?;
     let golden_img = image::open(golden).map_err(|err| err.to_string())?;
     let (aw, ah) = (actual_img.width(), actual_img.height());
@@ -370,7 +442,11 @@ fn compare_pngs(actual: &Path, golden: &Path, max_mean_delta: f64) -> std::resul
 
     let mut delta_sum = 0.0;
     let mut count = 0.0;
-    for (a, g) in actual_img.to_rgb8().pixels().zip(golden_img.to_rgb8().pixels()) {
+    for (a, g) in actual_img
+        .to_rgb8()
+        .pixels()
+        .zip(golden_img.to_rgb8().pixels())
+    {
         for channel in 0..3 {
             delta_sum += (i32::from(a[channel]) - i32::from(g[channel])).unsigned_abs() as f64;
             count += 1.0;
@@ -468,4 +544,24 @@ fn fidelity_line_log_x() {
 #[test]
 fn fidelity_line_log_log() {
     fidelity_case("line_log_log.png", render_line_log_log, 40.0).unwrap();
+}
+
+#[test]
+fn fidelity_scatter() {
+    fidelity_case("scatter.png", render_scatter, 35.0).unwrap();
+}
+
+#[test]
+fn fidelity_step() {
+    fidelity_case("step.png", render_step, 35.0).unwrap();
+}
+
+#[test]
+fn fidelity_barh() {
+    fidelity_case("barh.png", render_barh, 35.0).unwrap();
+}
+
+#[test]
+fn fidelity_errorbar() {
+    fidelity_case("errorbar.png", render_errorbar, 35.0).unwrap();
 }

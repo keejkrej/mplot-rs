@@ -1,7 +1,9 @@
-use crate::colormap::{Colormap, Normalize};
-use crate::panel::{TickFormat, TickLabelRotation, TickLabels};
 use crate::color::Color;
-use crate::series::{LineDash, Marker, StepWhere};
+use crate::colormap::{Colormap, Normalize};
+use crate::panel::{GridStyle, TickFormat, TickLabelRotation, TickLabels};
+use crate::series::{
+    ArrowStyle, HorizontalAlignment, LineDash, Marker, StepWhere, TextStyle, VerticalAlignment,
+};
 
 /// Layout insets applied during rendering (constrained layout).
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -152,6 +154,18 @@ pub struct TextSeries {
     pub text: String,
     pub color: Color,
     pub fontsize: f64,
+    pub ha: HorizontalAlignment,
+    pub va: VerticalAlignment,
+    pub rotation: f64,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct AnnotationSeries {
+    pub xy: (f64, f64),
+    pub xytext: (f64, f64),
+    pub text: String,
+    pub text_style: TextStyle,
+    pub arrow: Option<ArrowStyle>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -204,6 +218,7 @@ pub enum CompiledSeries {
     Image(ImageSeries),
     Contour(ContourSeries),
     Text(TextSeries),
+    Annotation(AnnotationSeries),
     AxHLine(AxHLineSeries),
     AxVLine(AxVLineSeries),
     AxHSpan(AxHSpanSeries),
@@ -223,10 +238,13 @@ pub struct CompiledPanel {
     pub ylabel: Option<String>,
     pub xrange: Option<(f64, f64)>,
     pub yrange: Option<(f64, f64)>,
+    pub invert_x: bool,
+    pub invert_y: bool,
     pub log_x: bool,
     pub log_y: bool,
     pub hide_axes: bool,
     pub show_grid: bool,
+    pub grid_style: Option<GridStyle>,
     pub ticks_x: Option<TickLabels>,
     pub ticks_y: Option<TickLabels>,
     pub x_tick_format: TickFormat,

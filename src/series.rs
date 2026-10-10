@@ -37,6 +37,25 @@ pub enum Marker {
     Star,
 }
 
+/// Horizontal text alignment (matplotlib `ha`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum HorizontalAlignment {
+    #[default]
+    Left,
+    Center,
+    Right,
+}
+
+/// Vertical text alignment (matplotlib `va`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum VerticalAlignment {
+    Top,
+    Center,
+    Bottom,
+    #[default]
+    Baseline,
+}
+
 /// Styling for line series.
 #[derive(Clone, Debug, PartialEq)]
 pub struct LineStyle {
@@ -520,6 +539,9 @@ impl ContourStyle {
 pub struct TextStyle {
     color: Color,
     fontsize: f64,
+    ha: HorizontalAlignment,
+    va: VerticalAlignment,
+    rotation: f64,
 }
 
 impl Default for TextStyle {
@@ -527,6 +549,9 @@ impl Default for TextStyle {
         TextStyle {
             color: Color::rgb(0, 0, 0),
             fontsize: 10.0,
+            ha: HorizontalAlignment::Left,
+            va: VerticalAlignment::Baseline,
+            rotation: 0.0,
         }
     }
 }
@@ -546,12 +571,163 @@ impl TextStyle {
         self
     }
 
+    pub fn ha(mut self, ha: HorizontalAlignment) -> Self {
+        self.ha = ha;
+        self
+    }
+
+    pub fn va(mut self, va: VerticalAlignment) -> Self {
+        self.va = va;
+        self
+    }
+
+    pub fn rotation(mut self, degrees: f64) -> Self {
+        self.rotation = degrees;
+        self
+    }
+
     pub(crate) fn color_value(&self) -> Color {
         self.color
     }
 
     pub(crate) fn fontsize_value(&self) -> f64 {
         self.fontsize
+    }
+
+    pub(crate) fn ha_value(&self) -> HorizontalAlignment {
+        self.ha
+    }
+
+    pub(crate) fn va_value(&self) -> VerticalAlignment {
+        self.va
+    }
+
+    pub(crate) fn rotation_value(&self) -> f64 {
+        self.rotation
+    }
+}
+
+/// Styling for callout arrows in annotations.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ArrowStyle {
+    color: Color,
+    width: f64,
+    head_width: f64,
+    head_length: f64,
+    shrink: f64,
+}
+
+impl Default for ArrowStyle {
+    fn default() -> Self {
+        ArrowStyle {
+            color: Color::rgb(0, 0, 0),
+            width: 1.0,
+            head_width: 6.0,
+            head_length: 7.0,
+            shrink: 2.0,
+        }
+    }
+}
+
+impl ArrowStyle {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn color(mut self, color: Color) -> Self {
+        self.color = color;
+        self
+    }
+
+    pub fn width(mut self, width: f64) -> Self {
+        self.width = width;
+        self
+    }
+
+    pub fn head_width(mut self, head_width: f64) -> Self {
+        self.head_width = head_width;
+        self
+    }
+
+    pub fn head_length(mut self, head_length: f64) -> Self {
+        self.head_length = head_length;
+        self
+    }
+
+    pub fn shrink(mut self, shrink: f64) -> Self {
+        self.shrink = shrink;
+        self
+    }
+
+    pub(crate) fn color_value(&self) -> Color {
+        self.color
+    }
+
+    pub(crate) fn width_value(&self) -> f64 {
+        self.width
+    }
+
+    pub(crate) fn head_width_value(&self) -> f64 {
+        self.head_width
+    }
+
+    pub(crate) fn head_length_value(&self) -> f64 {
+        self.head_length
+    }
+
+    pub(crate) fn shrink_value(&self) -> f64 {
+        self.shrink
+    }
+}
+
+/// Styling for annotations with optional callout arrows (matplotlib `ax.annotate`).
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct AnnotationStyle {
+    text_style: TextStyle,
+    arrow: Option<ArrowStyle>,
+}
+
+impl AnnotationStyle {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn text_style(mut self, style: TextStyle) -> Self {
+        self.text_style = style;
+        self
+    }
+
+    pub fn color(mut self, color: Color) -> Self {
+        self.text_style = self.text_style.color(color);
+        self
+    }
+
+    pub fn fontsize(mut self, size: f64) -> Self {
+        self.text_style = self.text_style.fontsize(size);
+        self
+    }
+
+    pub fn ha(mut self, ha: HorizontalAlignment) -> Self {
+        self.text_style = self.text_style.ha(ha);
+        self
+    }
+
+    pub fn va(mut self, va: VerticalAlignment) -> Self {
+        self.text_style = self.text_style.va(va);
+        self
+    }
+
+    pub fn arrow(mut self, arrow: ArrowStyle) -> Self {
+        self.arrow = Some(arrow);
+        self
+    }
+
+    pub(crate) fn text_style_value(&self) -> TextStyle {
+        self.text_style
+    }
+
+    pub(crate) fn arrow_value(&self) -> Option<ArrowStyle> {
+        self.arrow
     }
 }
 
@@ -758,6 +934,10 @@ impl ErrorBarStyle {
         self
     }
 
+    pub fn cap_size(self, cap_size: f64) -> Self {
+        self.capsize(cap_size)
+    }
+
     pub fn capthick(mut self, capthick: f64) -> Self {
         self.capthick = capthick.max(0.0);
         self
@@ -881,6 +1061,10 @@ impl StepStyle {
     pub fn where_step(mut self, where_step: StepWhere) -> Self {
         self.where_step = where_step;
         self
+    }
+
+    pub fn step_where(self, step_where: StepWhere) -> Self {
+        self.where_step(step_where)
     }
 
     pub fn color(mut self, color: Color) -> Self {
@@ -1060,6 +1244,12 @@ pub enum Series {
         text: String,
         style: TextStyle,
     },
+    Annotation {
+        xy: (f64, f64),
+        xytext: (f64, f64),
+        text: String,
+        style: AnnotationStyle,
+    },
     AxHLine {
         y: f64,
         style: LineStyle,
@@ -1198,6 +1388,20 @@ impl Series {
         Series::Text {
             x,
             y,
+            text: text.into(),
+            style,
+        }
+    }
+
+    pub fn annotate(
+        text: impl Into<String>,
+        xy: (f64, f64),
+        xytext: (f64, f64),
+        style: AnnotationStyle,
+    ) -> Self {
+        Series::Annotation {
+            xy,
+            xytext,
             text: text.into(),
             style,
         }

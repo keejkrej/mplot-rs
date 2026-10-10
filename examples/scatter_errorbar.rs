@@ -11,26 +11,38 @@ fn main() -> Result<()> {
         .panel(GridPos::new(2, 2, 1), |p| {
             let x = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0];
             let y = [0.8, 1.9, 1.5, 3.2, 2.7, 4.3];
-            p.axhspan(1.0, 3.0, FillBetweenStyle::new().color(Color::hex("#e0e0e0")).alpha(0.5))
-                .axhline(2.5, LineStyle::new().color(Color::hex("#d62728")).dash(LineDash::Dashed).label("target"))
-                .scatter(
-                    &x,
-                    &y,
-                    ScatterStyle::new()
-                        .color(Color::TABLEAU[0])
-                        .size(60.0)
-                        .marker(Marker::Diamond)
-                        .edge_color(Color::hex("#000000"))
-                        .edge_width(1.0)
-                        .label("observed"),
-                )
-                .axes(
-                    AxesStyle::new()
-                        .title("Scatter & Reference Lines")
-                        .x_label("dose (uM)")
-                        .y_label("response")
-                        .legend(LegendStyle::show()),
-                );
+            p.axhspan(
+                1.0,
+                3.0,
+                FillBetweenStyle::new()
+                    .color(Color::hex("#e0e0e0"))
+                    .alpha(0.5),
+            )
+            .axhline(
+                2.5,
+                LineStyle::new()
+                    .color(Color::hex("#d62728"))
+                    .dash(LineDash::Dashed)
+                    .label("target"),
+            )
+            .scatter(
+                &x,
+                &y,
+                ScatterStyle::new()
+                    .color(Color::TABLEAU[0])
+                    .size(60.0)
+                    .marker(Marker::Diamond)
+                    .edge_color(Color::hex("#000000"))
+                    .edge_width(1.0)
+                    .label("observed"),
+            )
+            .axes(
+                AxesStyle::new()
+                    .title("Scatter & Reference Lines")
+                    .x_label("dose (uM)")
+                    .y_label("response")
+                    .legend(LegendStyle::show()),
+            );
         })
         // Panel 2: Error bars with caps
         .panel(GridPos::new(2, 2, 2), |p| {

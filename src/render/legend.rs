@@ -361,7 +361,9 @@ fn draw_legend_line<DB: DrawingBackend>(
     }
     if !matches!(entry.marker, Marker::None) {
         let cx = (x0 + x1) / 2;
-        let r = ((entry.width * 2.0).max(4.0) * dpi as f64 / 72.0).round().max(3.0) as i32;
+        let r = ((entry.width * 2.0).max(4.0) * dpi as f64 / 72.0)
+            .round()
+            .max(3.0) as i32;
         let m_style = ShapeStyle {
             color: entry.color.to_rgba(),
             filled: true,
@@ -392,10 +394,16 @@ fn draw_legend_line<DB: DrawingBackend>(
                     filled: false,
                     stroke_width: stroke_width_px(1.2, dpi),
                 };
-                plot.draw(&PathElement::new(vec![(cx - s, y - s), (cx + s, y + s)], cross_style))
-                    .map_err(|_| "failed to draw legend marker")?;
-                plot.draw(&PathElement::new(vec![(cx - s, y + s), (cx + s, y - s)], cross_style))
-                    .map_err(|_| "failed to draw legend marker")?;
+                plot.draw(&PathElement::new(
+                    vec![(cx - s, y - s), (cx + s, y + s)],
+                    cross_style,
+                ))
+                .map_err(|_| "failed to draw legend marker")?;
+                plot.draw(&PathElement::new(
+                    vec![(cx - s, y + s), (cx + s, y - s)],
+                    cross_style,
+                ))
+                .map_err(|_| "failed to draw legend marker")?;
             }
             Marker::Plus => {
                 let plus_style = ShapeStyle {
@@ -403,10 +411,16 @@ fn draw_legend_line<DB: DrawingBackend>(
                     filled: false,
                     stroke_width: stroke_width_px(1.2, dpi),
                 };
-                plot.draw(&PathElement::new(vec![(cx - s, y), (cx + s, y)], plus_style))
-                    .map_err(|_| "failed to draw legend marker")?;
-                plot.draw(&PathElement::new(vec![(cx, y - s), (cx, y + s)], plus_style))
-                    .map_err(|_| "failed to draw legend marker")?;
+                plot.draw(&PathElement::new(
+                    vec![(cx - s, y), (cx + s, y)],
+                    plus_style,
+                ))
+                .map_err(|_| "failed to draw legend marker")?;
+                plot.draw(&PathElement::new(
+                    vec![(cx, y - s), (cx, y + s)],
+                    plus_style,
+                ))
+                .map_err(|_| "failed to draw legend marker")?;
             }
             Marker::TriangleUp => {
                 let h_top = (s as f64 * 1.2).round() as i32;
@@ -440,7 +454,8 @@ fn draw_legend_line<DB: DrawingBackend>(
                 let r_outer = s as f64 * 1.3;
                 let r_inner = s as f64 * 0.52;
                 for i in 0..10 {
-                    let angle = (i as f64) * std::f64::consts::PI / 5.0 - std::f64::consts::FRAC_PI_2;
+                    let angle =
+                        (i as f64) * std::f64::consts::PI / 5.0 - std::f64::consts::FRAC_PI_2;
                     let r = if i % 2 == 0 { r_outer } else { r_inner };
                     pts.push((
                         cx + (r * angle.cos()).round() as i32,

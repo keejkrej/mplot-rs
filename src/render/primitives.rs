@@ -2,20 +2,21 @@ use plotters::coord::types::RangedCoordf64;
 use plotters::element::{Circle, EmptyElement, PathElement, Polygon, Rectangle, Text};
 use plotters::prelude::*;
 use plotters::series::LineSeries as PlotLineSeries;
-use plotters::style::{Color, RGBColor, ShapeStyle};
+use plotters::style::text_anchor::{HPos, Pos, VPos};
+use plotters::style::{Color, RGBColor, ShapeStyle, TextStyle};
 
 use crate::axes::PanelScales;
 use crate::colormap::{Colormap, Normalize};
 use crate::render::model::{
-    AxHLineSeries, AxHSpanSeries, AxVLineSeries, AxVSpanSeries, BarHSeries, BarSeries,
-    BoxplotSeries, CompiledSeries, ContourSeries, ErrorBarSeries, FillBetweenSeries, HistSeries,
-    ImageSeries, LineSeries, ScatterSeries, StepSeries, TextSeries,
+    AnnotationSeries, AxHLineSeries, AxHSpanSeries, AxVLineSeries, AxVSpanSeries, BarHSeries,
+    BarSeries, BoxplotSeries, CompiledSeries, ContourSeries, ErrorBarSeries, FillBetweenSeries,
+    HistSeries, ImageSeries, LineSeries, ScatterSeries, StepSeries, TextSeries,
 };
 use crate::render::mpl_style::{
     marker_radius_px, stroke_width_px, MPL_FONT, MPL_LINE_WIDTH, MPL_MARKER_SIZE,
 };
 use crate::render::scene::{box_positions, box_stats, default_box_width};
-use crate::series::{LineDash, Marker, StepWhere};
+use crate::series::{HorizontalAlignment, LineDash, Marker, StepWhere, VerticalAlignment};
 
 type Chart<'a, DB> = ChartContext<'a, DB, Cartesian2d<RangedCoordf64, RangedCoordf64>>;
 
@@ -49,6 +50,9 @@ pub fn draw_series<DB: DrawingBackend>(
         CompiledSeries::Image(image) => draw_image(chart, image, scales),
         CompiledSeries::Contour(contour) => draw_contour(chart, contour, scales, dpi),
         CompiledSeries::Text(text) => draw_text(chart, text, scales, tick_fontsize_px),
+        CompiledSeries::Annotation(ann) => {
+            draw_annotation(chart, ann, scales, tick_fontsize_px, dpi)
+        }
         CompiledSeries::AxHLine(line) => draw_axhline(chart, line, scales, dpi, clip),
         CompiledSeries::AxVLine(line) => draw_axvline(chart, line, scales, dpi, clip),
         CompiledSeries::AxHSpan(span) => draw_axhspan(chart, span, scales, dpi, clip),
@@ -121,7 +125,11 @@ fn draw_curve<DB: DrawingBackend>(
         return Ok(());
     }
 
-    let width = if curve.width > 0.0 { curve.width } else { MPL_LINE_WIDTH };
+    let width = if curve.width > 0.0 {
+        curve.width
+    } else {
+        MPL_LINE_WIDTH
+    };
     let stroke_width = stroke_width_px(width, dpi);
     // Use true RGBA so overlapping traces darken (per-line alpha, not baked gray).
     let style = ShapeStyle {
@@ -205,10 +213,7 @@ fn clip_segment(
             }
         }
     }
-    Some((
-        (x0 + t0 * dx, y0 + t0 * dy),
-        (x0 + t1 * dx, y0 + t1 * dy),
-    ))
+    Some(((x0 + t0 * dx, y0 + t0 * dy), (x0 + t1 * dx, y0 + t1 * dy)))
 }
 
 /// Clip a polyline to the axes box; may split into multiple visible segments.
@@ -270,21 +275,20 @@ pub(crate) fn draw_marker_shape<DB: DrawingBackend>(
                 .map_err(|_| "failed to draw marker")?;
         }
         Marker::Square => {
-            let pts = vec![
-                (-s, -s),
-                (s, -s),
-                (s, s),
-                (-s, s),
-            ];
+            let pts = vec![(-s, -s), (s, -s), (s, s), (-s, s)];
             if style.filled {
                 chart
-                    .draw_series(std::iter::once(EmptyElement::at((x, y)) + Polygon::new(pts, style)))
+                    .draw_series(std::iter::once(
+                        EmptyElement::at((x, y)) + Polygon::new(pts, style),
+                    ))
                     .map_err(|_| "failed to draw marker")?;
             } else {
                 let mut stroke_pts = pts;
                 stroke_pts.push((-s, -s));
                 chart
-                    .draw_series(std::iter::once(EmptyElement::at((x, y)) + PathElement::new(stroke_pts, style)))
+                    .draw_series(std::iter::once(
+                        EmptyElement::at((x, y)) + PathElement::new(stroke_pts, style),
+                    ))
                     .map_err(|_| "failed to draw marker")?;
             }
         }
@@ -307,61 +311,60 @@ pub(crate) fn draw_marker_shape<DB: DrawingBackend>(
         Marker::TriangleUp => {
             let h_top = (s as f64 * 1.2).round() as i32;
             let h_bot = (s as f64 * 0.7).round() as i32;
-            let pts = vec![
-                (0, -h_top),
-                (s, h_bot),
-                (-s, h_bot),
-            ];
+            let pts = vec![(0, -h_top), (s, h_bot), (-s, h_bot)];
             if style.filled {
                 chart
-                    .draw_series(std::iter::once(EmptyElement::at((x, y)) + Polygon::new(pts, style)))
+                    .draw_series(std::iter::once(
+                        EmptyElement::at((x, y)) + Polygon::new(pts, style),
+                    ))
                     .map_err(|_| "failed to draw marker")?;
             } else {
                 let mut stroke_pts = pts;
                 stroke_pts.push((0, -h_top));
                 chart
-                    .draw_series(std::iter::once(EmptyElement::at((x, y)) + PathElement::new(stroke_pts, style)))
+                    .draw_series(std::iter::once(
+                        EmptyElement::at((x, y)) + PathElement::new(stroke_pts, style),
+                    ))
                     .map_err(|_| "failed to draw marker")?;
             }
         }
         Marker::TriangleDown => {
             let h_bot = (s as f64 * 1.2).round() as i32;
             let h_top = (s as f64 * 0.7).round() as i32;
-            let pts = vec![
-                (0, h_bot),
-                (s, -h_top),
-                (-s, -h_top),
-            ];
+            let pts = vec![(0, h_bot), (s, -h_top), (-s, -h_top)];
             if style.filled {
                 chart
-                    .draw_series(std::iter::once(EmptyElement::at((x, y)) + Polygon::new(pts, style)))
+                    .draw_series(std::iter::once(
+                        EmptyElement::at((x, y)) + Polygon::new(pts, style),
+                    ))
                     .map_err(|_| "failed to draw marker")?;
             } else {
                 let mut stroke_pts = pts;
                 stroke_pts.push((0, h_bot));
                 chart
-                    .draw_series(std::iter::once(EmptyElement::at((x, y)) + PathElement::new(stroke_pts, style)))
+                    .draw_series(std::iter::once(
+                        EmptyElement::at((x, y)) + PathElement::new(stroke_pts, style),
+                    ))
                     .map_err(|_| "failed to draw marker")?;
             }
         }
         Marker::Diamond => {
             let sy = (s as f64 * 1.3).round() as i32;
             let sx = (s as f64 * 0.9).round() as i32;
-            let pts = vec![
-                (0, -sy),
-                (sx, 0),
-                (0, sy),
-                (-sx, 0),
-            ];
+            let pts = vec![(0, -sy), (sx, 0), (0, sy), (-sx, 0)];
             if style.filled {
                 chart
-                    .draw_series(std::iter::once(EmptyElement::at((x, y)) + Polygon::new(pts, style)))
+                    .draw_series(std::iter::once(
+                        EmptyElement::at((x, y)) + Polygon::new(pts, style),
+                    ))
                     .map_err(|_| "failed to draw marker")?;
             } else {
                 let mut stroke_pts = pts;
                 stroke_pts.push((0, -sy));
                 chart
-                    .draw_series(std::iter::once(EmptyElement::at((x, y)) + PathElement::new(stroke_pts, style)))
+                    .draw_series(std::iter::once(
+                        EmptyElement::at((x, y)) + PathElement::new(stroke_pts, style),
+                    ))
                     .map_err(|_| "failed to draw marker")?;
             }
         }
@@ -372,11 +375,16 @@ pub(crate) fn draw_marker_shape<DB: DrawingBackend>(
             for i in 0..10 {
                 let angle = (i as f64) * std::f64::consts::PI / 5.0 - std::f64::consts::FRAC_PI_2;
                 let r = if i % 2 == 0 { r_outer } else { r_inner };
-                pts.push(((r * angle.cos()).round() as i32, (r * angle.sin()).round() as i32));
+                pts.push((
+                    (r * angle.cos()).round() as i32,
+                    (r * angle.sin()).round() as i32,
+                ));
             }
             if style.filled {
                 chart
-                    .draw_series(std::iter::once(EmptyElement::at((x, y)) + Polygon::new(pts, style)))
+                    .draw_series(std::iter::once(
+                        EmptyElement::at((x, y)) + Polygon::new(pts, style),
+                    ))
                     .map_err(|_| "failed to draw marker")?;
             } else {
                 let mut stroke_pts = pts;
@@ -384,7 +392,9 @@ pub(crate) fn draw_marker_shape<DB: DrawingBackend>(
                     stroke_pts.push(first);
                 }
                 chart
-                    .draw_series(std::iter::once(EmptyElement::at((x, y)) + PathElement::new(stroke_pts, style)))
+                    .draw_series(std::iter::once(
+                        EmptyElement::at((x, y)) + PathElement::new(stroke_pts, style),
+                    ))
                     .map_err(|_| "failed to draw marker")?;
             }
         }
@@ -427,7 +437,11 @@ fn draw_bar<DB: DrawingBackend>(
         let x0 = *x - half;
         let x1 = *x + half;
         let y_val = scales.y.data_to_axis(*height);
-        let (y0, y1) = if y_base <= y_val { (y_base, y_val) } else { (y_val, y_base) };
+        let (y0, y1) = if y_base <= y_val {
+            (y_base, y_val)
+        } else {
+            (y_val, y_base)
+        };
         chart
             .draw_series(std::iter::once(Rectangle::new(
                 [(x0, y0), (x1, y1)],
@@ -498,9 +512,7 @@ fn histogram_bins(data: &[f64], bins: usize) -> (Vec<f64>, Vec<f64>) {
         return (edges, vec![values.len() as f64]);
     }
     let step = (max - min) / bins as f64;
-    let edges: Vec<f64> = (0..=bins)
-        .map(|i| min + step * i as f64)
-        .collect();
+    let edges: Vec<f64> = (0..=bins).map(|i| min + step * i as f64).collect();
     let mut counts = vec![0.0; bins];
     for value in values {
         let mut idx = ((value - min) / step).floor() as usize;
@@ -555,7 +567,11 @@ fn draw_fill_between<DB: DrawingBackend>(
     Ok(())
 }
 
-fn draw_image<DB: DrawingBackend>(chart: &mut Chart<'_, DB>, image: &ImageSeries, scales: PanelScales) -> Result<(), &'static str> {
+fn draw_image<DB: DrawingBackend>(
+    chart: &mut Chart<'_, DB>,
+    image: &ImageSeries,
+    scales: PanelScales,
+) -> Result<(), &'static str> {
     let (x0, x1, y0, y1) = image.extent;
     let ax_x0 = scales.x.data_to_axis(x0);
     let ax_x1 = scales.x.data_to_axis(x1);
@@ -677,10 +693,18 @@ fn marching_squares_segments(
 ) -> Vec<[(f64, f64); 2]> {
     let mut segments = Vec::new();
     let mut case = 0usize;
-    if z00 >= level { case |= 1; }
-    if z10 >= level { case |= 2; }
-    if z11 >= level { case |= 4; }
-    if z01 >= level { case |= 8; }
+    if z00 >= level {
+        case |= 1;
+    }
+    if z10 >= level {
+        case |= 2;
+    }
+    if z11 >= level {
+        case |= 4;
+    }
+    if z01 >= level {
+        case |= 8;
+    }
 
     let interp = |a: f64, b: f64, t: f64| -> f64 {
         if (b - a).abs() < 1e-12 {
@@ -721,20 +745,118 @@ fn draw_text<DB: DrawingBackend>(
     scales: PanelScales,
     tick_fontsize_px: f64,
 ) -> Result<(), &'static str> {
+    if !scales.x.usable(text.x) || !scales.y.usable(text.y) {
+        return Ok(());
+    }
     let (x, y) = scales.map_xy(text.x, text.y);
     let size = if text.fontsize > 0.0 {
         text.fontsize
     } else {
         tick_fontsize_px
     };
-    let label = text.text.clone();
+    let h_pos = match text.ha {
+        HorizontalAlignment::Left => HPos::Left,
+        HorizontalAlignment::Center => HPos::Center,
+        HorizontalAlignment::Right => HPos::Right,
+    };
+    let v_pos = match text.va {
+        VerticalAlignment::Top => VPos::Top,
+        VerticalAlignment::Center => VPos::Center,
+        VerticalAlignment::Bottom => VPos::Bottom,
+        VerticalAlignment::Baseline => VPos::Bottom,
+    };
+    let rgb = text.color.to_rgb();
+    let rgba = rgb.to_rgba();
+    let style = TextStyle::from((MPL_FONT, size.round() as i32).into_font())
+        .color(&rgba)
+        .pos(Pos::new(h_pos, v_pos));
     chart
-        .draw_series(std::iter::once(Text::new(
-            label,
-            (x, y),
-            (MPL_FONT, size.round() as i32),
-        )))
+        .draw_series(std::iter::once(Text::new(text.text.clone(), (x, y), style)))
         .map_err(|_| "failed to draw text")?;
+    Ok(())
+}
+
+fn draw_annotation<DB: DrawingBackend>(
+    chart: &mut Chart<'_, DB>,
+    ann: &AnnotationSeries,
+    scales: PanelScales,
+    tick_fontsize_px: f64,
+    dpi: u32,
+) -> Result<(), &'static str> {
+    let (tx, ty) = ann.xy;
+    let (sx, sy) = ann.xytext;
+    if !scales.x.usable(tx) || !scales.y.usable(ty) || !scales.x.usable(sx) || !scales.y.usable(sy)
+    {
+        return Ok(());
+    }
+    let target_axis = scales.map_xy(tx, ty);
+    let text_axis = scales.map_xy(sx, sy);
+
+    if let Some(arrow) = ann.arrow {
+        let p_target = chart.backend_coord(&target_axis);
+        let p_source = chart.backend_coord(&text_axis);
+        let dx = (p_target.0 - p_source.0) as f64;
+        let dy = (p_target.1 - p_source.1) as f64;
+        let dist = (dx * dx + dy * dy).sqrt();
+
+        if dist > 3.0 {
+            let ux = dx / dist;
+            let uy = dy / dist;
+            let shrink_px = arrow.shrink_value() * dpi as f64 / 72.0;
+            let head_len = arrow.head_length_value() * dpi as f64 / 72.0;
+            let head_half_w = (arrow.head_width_value() / 2.0) * dpi as f64 / 72.0;
+
+            let x0 = (p_source.0 as f64 + ux * shrink_px).round() as i32;
+            let y0 = (p_source.1 as f64 + uy * shrink_px).round() as i32;
+            let x1 = (p_target.0 as f64 - ux * shrink_px).round() as i32;
+            let y1 = (p_target.1 as f64 - uy * shrink_px).round() as i32;
+
+            let base_x = x1 as f64 - ux * head_len;
+            let base_y = y1 as f64 - uy * head_len;
+            let w1_x = (base_x - uy * head_half_w).round() as i32;
+            let w1_y = (base_y + ux * head_half_w).round() as i32;
+            let w2_x = (base_x + uy * head_half_w).round() as i32;
+            let w2_y = (base_y - ux * head_half_w).round() as i32;
+
+            let screen = chart.plotting_area().use_screen_coord();
+            let shaft_style = ShapeStyle {
+                color: arrow.color_value().to_rgba(),
+                filled: false,
+                stroke_width: stroke_width_px(arrow.width_value(), dpi),
+            };
+            let head_style = ShapeStyle {
+                color: arrow.color_value().to_rgba(),
+                filled: true,
+                stroke_width: 0,
+            };
+
+            screen
+                .draw(&PathElement::new(
+                    vec![(x0, y0), (base_x.round() as i32, base_y.round() as i32)],
+                    shaft_style,
+                ))
+                .map_err(|_| "failed to draw arrow shaft")?;
+            screen
+                .draw(&Polygon::new(
+                    vec![(x1, y1), (w1_x, w1_y), (w2_x, w2_y)],
+                    head_style,
+                ))
+                .map_err(|_| "failed to draw arrowhead")?;
+        }
+    }
+
+    let t_style = ann.text_style;
+    let text_series = TextSeries {
+        x: sx,
+        y: sy,
+        text: ann.text.clone(),
+        color: t_style.color_value(),
+        fontsize: t_style.fontsize_value(),
+        ha: t_style.ha_value(),
+        va: t_style.va_value(),
+        rotation: t_style.rotation_value(),
+    };
+    draw_text(chart, &text_series, scales, tick_fontsize_px)?;
     Ok(())
 }
 
@@ -774,13 +896,37 @@ pub fn draw_boxplot<DB: DrawingBackend>(
 
         if boxes.horizontal {
             draw_horizontal_box(
-                chart, scales, pos, width, cap_width, &stats, boxes, edge, fill, median_color,
-                edge_style, flier_size, dpi, thin_stroke,
+                chart,
+                scales,
+                pos,
+                width,
+                cap_width,
+                &stats,
+                boxes,
+                edge,
+                fill,
+                median_color,
+                edge_style,
+                flier_size,
+                dpi,
+                thin_stroke,
             )?;
         } else {
             draw_vertical_box(
-                chart, scales, pos, width, cap_width, &stats, boxes, edge, fill, median_color,
-                edge_style, flier_size, dpi, thin_stroke,
+                chart,
+                scales,
+                pos,
+                width,
+                cap_width,
+                &stats,
+                boxes,
+                edge,
+                fill,
+                median_color,
+                edge_style,
+                flier_size,
+                dpi,
+                thin_stroke,
             )?;
         }
     }
@@ -813,7 +959,17 @@ fn draw_vertical_box<DB: DrawingBackend>(
     let cap_x0 = pos - cap_width / 2.0;
     let cap_x1 = pos + cap_width / 2.0;
 
-    draw_box_rect(chart, boxes.patch_artist, x0, x1, y_q1, y_q3, fill, edge_style, thin_stroke)?;
+    draw_box_rect(
+        chart,
+        boxes.patch_artist,
+        x0,
+        x1,
+        y_q1,
+        y_q3,
+        fill,
+        edge_style,
+        thin_stroke,
+    )?;
     chart
         .draw_series(std::iter::once(PathElement::new(
             vec![(x0, y_med), (x1, y_med)],
@@ -890,7 +1046,17 @@ fn draw_horizontal_box<DB: DrawingBackend>(
     let cap_y0 = pos - cap_width / 2.0;
     let cap_y1 = pos + cap_width / 2.0;
 
-    draw_box_rect(chart, boxes.patch_artist, x_q1, x_q3, y0, y1, fill, edge_style, thin_stroke)?;
+    draw_box_rect(
+        chart,
+        boxes.patch_artist,
+        x_q1,
+        x_q3,
+        y0,
+        y1,
+        fill,
+        edge_style,
+        thin_stroke,
+    )?;
     chart
         .draw_series(std::iter::once(PathElement::new(
             vec![(x_med, y0), (x_med, y1)],
@@ -990,7 +1156,9 @@ fn draw_scatter<DB: DrawingBackend>(
     if scatter.x.len() != scatter.y.len() || scatter.x.is_empty() {
         return Ok(());
     }
-    let radius = (scatter.size.sqrt() * dpi as f64 / 72.0 / 2.0).round().max(1.0) as i32;
+    let radius = (scatter.size.sqrt() * dpi as f64 / 72.0 / 2.0)
+        .round()
+        .max(1.0) as i32;
     let fill_style = ShapeStyle {
         color: scatter.color.to_rgba(),
         filled: true,
@@ -1119,9 +1287,7 @@ fn draw_errorbar<DB: DrawingBackend>(
         if let (Some(lo_val), Some(hi_val)) = (y_lo, y_hi) {
             let y_bottom = scales.y.data_to_axis(y - lo_val);
             let y_top = scales.y.data_to_axis(y + hi_val);
-            if let Some(((bx0, by0), (bx1, by1))) =
-                clip_segment(mx, y_bottom, mx, y_top, clip)
-            {
+            if let Some(((bx0, by0), (bx1, by1))) = clip_segment(mx, y_bottom, mx, y_top, clip) {
                 chart
                     .draw_series(std::iter::once(PathElement::new(
                         vec![(bx0, by0), (bx1, by1)],
@@ -1138,7 +1304,11 @@ fn draw_errorbar<DB: DrawingBackend>(
                         ))
                         .map_err(|_| "failed to draw errorbar cap")?;
                 }
-                if y_bottom >= clip.ymin && y_bottom <= clip.ymax && mx >= clip.xmin && mx <= clip.xmax {
+                if y_bottom >= clip.ymin
+                    && y_bottom <= clip.ymax
+                    && mx >= clip.xmin
+                    && mx <= clip.xmax
+                {
                     chart
                         .draw_series(std::iter::once(
                             EmptyElement::at((mx, y_bottom))
@@ -1161,9 +1331,7 @@ fn draw_errorbar<DB: DrawingBackend>(
         if let (Some(lo_val), Some(hi_val)) = (x_lo, x_hi) {
             let x_left = scales.x.data_to_axis(x - lo_val);
             let x_right = scales.x.data_to_axis(x + hi_val);
-            if let Some(((bx0, by0), (bx1, by1))) =
-                clip_segment(x_left, my, x_right, my, clip)
-            {
+            if let Some(((bx0, by0), (bx1, by1))) = clip_segment(x_left, my, x_right, my, clip) {
                 chart
                     .draw_series(std::iter::once(PathElement::new(
                         vec![(bx0, by0), (bx1, by1)],
@@ -1172,7 +1340,8 @@ fn draw_errorbar<DB: DrawingBackend>(
                     .map_err(|_| "failed to draw errorbar stem")?;
             }
             if err.capsize > 0.0 {
-                if x_left >= clip.xmin && x_left <= clip.xmax && my >= clip.ymin && my <= clip.ymax {
+                if x_left >= clip.xmin && x_left <= clip.xmax && my >= clip.ymin && my <= clip.ymax
+                {
                     chart
                         .draw_series(std::iter::once(
                             EmptyElement::at((x_left, my))
@@ -1180,7 +1349,11 @@ fn draw_errorbar<DB: DrawingBackend>(
                         ))
                         .map_err(|_| "failed to draw errorbar cap")?;
                 }
-                if x_right >= clip.xmin && x_right <= clip.xmax && my >= clip.ymin && my <= clip.ymax {
+                if x_right >= clip.xmin
+                    && x_right <= clip.xmax
+                    && my >= clip.ymin
+                    && my <= clip.ymax
+                {
                     chart
                         .draw_series(std::iter::once(
                             EmptyElement::at((x_right, my))
