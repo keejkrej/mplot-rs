@@ -1,7 +1,7 @@
 use crate::colormap::{Colormap, Normalize};
 use crate::panel::{TickFormat, TickLabelRotation, TickLabels};
 use crate::color::Color;
-use crate::series::{LineDash, Marker};
+use crate::series::{LineDash, Marker, StepWhere};
 
 /// Layout insets applied during rendering (constrained layout).
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -29,6 +29,50 @@ pub struct LineSeries {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub struct ScatterSeries {
+    pub x: Vec<f64>,
+    pub y: Vec<f64>,
+    pub label: String,
+    pub color: Color,
+    pub size: f64,
+    pub marker: Marker,
+    pub alpha: f64,
+    pub edge_color: Option<Color>,
+    pub edge_width: f64,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ErrorBarSeries {
+    pub x: Vec<f64>,
+    pub y: Vec<f64>,
+    pub yerr: Option<Vec<f64>>,
+    pub yerr_lower: Option<Vec<f64>>,
+    pub xerr: Option<Vec<f64>>,
+    pub xerr_lower: Option<Vec<f64>>,
+    pub label: String,
+    pub color: Color,
+    pub line_width: f64,
+    pub dash: LineDash,
+    pub marker: Marker,
+    pub capsize: f64,
+    pub capthick: f64,
+    pub elinewidth: f64,
+    pub ecolor: Color,
+    pub alpha: f64,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct StepSeries {
+    pub x: Vec<f64>,
+    pub y: Vec<f64>,
+    pub where_step: StepWhere,
+    pub label: String,
+    pub color: Color,
+    pub dash: LineDash,
+    pub width: f64,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct BoxplotSeries {
     pub groups: Vec<Vec<f64>>,
     pub horizontal: bool,
@@ -45,6 +89,16 @@ pub struct BarSeries {
     pub heights: Vec<f64>,
     pub color: Color,
     pub width: f64,
+    pub baseline: f64,
+    pub label: String,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct BarHSeries {
+    pub y: Vec<f64>,
+    pub widths: Vec<f64>,
+    pub color: Color,
+    pub height: f64,
     pub baseline: f64,
     pub label: String,
 }
@@ -101,15 +155,59 @@ pub struct TextSeries {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub struct AxHLineSeries {
+    pub y: f64,
+    pub color: Color,
+    pub width: f64,
+    pub dash: LineDash,
+    pub label: String,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct AxVLineSeries {
+    pub x: f64,
+    pub color: Color,
+    pub width: f64,
+    pub dash: LineDash,
+    pub label: String,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct AxHSpanSeries {
+    pub ymin: f64,
+    pub ymax: f64,
+    pub color: Color,
+    pub alpha: f64,
+    pub label: String,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct AxVSpanSeries {
+    pub xmin: f64,
+    pub xmax: f64,
+    pub color: Color,
+    pub alpha: f64,
+    pub label: String,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub enum CompiledSeries {
     Line(LineSeries),
+    Scatter(ScatterSeries),
+    ErrorBar(ErrorBarSeries),
+    Step(StepSeries),
     Boxplot(BoxplotSeries),
     Bar(BarSeries),
+    BarH(BarHSeries),
     Histogram(HistSeries),
     FillBetween(FillBetweenSeries),
     Image(ImageSeries),
     Contour(ContourSeries),
     Text(TextSeries),
+    AxHLine(AxHLineSeries),
+    AxVLine(AxVLineSeries),
+    AxHSpan(AxHSpanSeries),
+    AxVSpan(AxVSpanSeries),
 }
 
 #[derive(Clone, Debug, PartialEq)]

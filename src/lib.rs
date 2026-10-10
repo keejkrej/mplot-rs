@@ -61,8 +61,9 @@ pub mod prelude {
         AxesStyle, GridPos, LegendStyle, TickFormat, TickLabelRotation, TickLabels,
     };
     pub use crate::series::{
-        BarStyle, BoxplotStyle, ContourStyle, FillBetweenStyle, HistStyle, ImageStyle, LineDash,
-        LineStyle, Marker, Scale, Series, TextStyle,
+        BarHStyle, BarStyle, BoxplotStyle, ContourStyle, ErrorBarStyle, FillBetweenStyle,
+        HistStyle, ImageStyle, LineDash, LineStyle, Marker, Scale, ScatterStyle, Series, StepStyle,
+        StepWhere, TextStyle,
     };
 }
 

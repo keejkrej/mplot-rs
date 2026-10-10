@@ -188,6 +188,107 @@ pub fn data_bounds(panel: &CompiledPanel) -> DataBounds {
                     ymax = ymax.max(text.y);
                 }
             }
+            CompiledSeries::Scatter(scatter) => {
+                for (x, y) in scatter.x.iter().zip(scatter.y.iter()) {
+                    if x_scale.usable(*x) {
+                        xmin = xmin.min(*x);
+                        xmax = xmax.max(*x);
+                    }
+                    if y_scale.usable(*y) {
+                        ymin = ymin.min(*y);
+                        ymax = ymax.max(*y);
+                    }
+                }
+            }
+            CompiledSeries::Step(step) => {
+                for (x, y) in step.x.iter().zip(step.y.iter()) {
+                    if x_scale.usable(*x) {
+                        xmin = xmin.min(*x);
+                        xmax = xmax.max(*x);
+                    }
+                    if y_scale.usable(*y) {
+                        ymin = ymin.min(*y);
+                        ymax = ymax.max(*y);
+                    }
+                }
+            }
+            CompiledSeries::ErrorBar(err) => {
+                for (i, (&x, &y)) in err.x.iter().zip(err.y.iter()).enumerate() {
+                    let x_lo = err
+                        .xerr_lower
+                        .as_ref()
+                        .and_then(|e| e.get(i))
+                        .or_else(|| err.xerr.as_ref().and_then(|e| e.get(i)))
+                        .copied()
+                        .unwrap_or(0.0);
+                    let x_hi = err.xerr.as_ref().and_then(|e| e.get(i)).copied().unwrap_or(0.0);
+                    let y_lo = err
+                        .yerr_lower
+                        .as_ref()
+                        .and_then(|e| e.get(i))
+                        .or_else(|| err.yerr.as_ref().and_then(|e| e.get(i)))
+                        .copied()
+                        .unwrap_or(0.0);
+                    let y_hi = err.yerr.as_ref().and_then(|e| e.get(i)).copied().unwrap_or(0.0);
+
+                    if x_scale.usable(x - x_lo) {
+                        xmin = xmin.min(x - x_lo);
+                    }
+                    if x_scale.usable(x + x_hi) {
+                        xmax = xmax.max(x + x_hi);
+                    }
+                    if y_scale.usable(y - y_lo) {
+                        ymin = ymin.min(y - y_lo);
+                    }
+                    if y_scale.usable(y + y_hi) {
+                        ymax = ymax.max(y + y_hi);
+                    }
+                }
+            }
+            CompiledSeries::BarH(barh) => {
+                let half = barh.height / 2.0;
+                for (y, width) in barh.y.iter().zip(barh.widths.iter()) {
+                    ymin = ymin.min(*y - half);
+                    ymax = ymax.max(*y + half);
+                    if x_scale.usable(barh.baseline) {
+                        xmin = xmin.min(barh.baseline);
+                        xmax = xmax.max(barh.baseline);
+                    }
+                    let right = barh.baseline + *width;
+                    if x_scale.usable(right) {
+                        xmin = xmin.min(right);
+                        xmax = xmax.max(right);
+                    }
+                }
+            }
+            CompiledSeries::AxHLine(line) => {
+                if y_scale.usable(line.y) {
+                    ymin = ymin.min(line.y);
+                    ymax = ymax.max(line.y);
+                }
+            }
+            CompiledSeries::AxVLine(line) => {
+                if x_scale.usable(line.x) {
+                    xmin = xmin.min(line.x);
+                    xmax = xmax.max(line.x);
+                }
+            }
+            CompiledSeries::AxHSpan(span) => {
+                if y_scale.usable(span.ymin) {
+                    ymin = ymin.min(span.ymin);
+                }
+                if y_scale.usable(span.ymax) {
+                    ymax = ymax.max(span.ymax);
+                }
+            }
+            CompiledSeries::AxVSpan(span) => {
+                if x_scale.usable(span.xmin) {
+                    xmin = xmin.min(span.xmin);
+                }
+                if x_scale.usable(span.xmax) {
+                    xmax = xmax.max(span.xmax);
+                }
+            }
         }
     }
 

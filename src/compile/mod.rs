@@ -3,8 +3,10 @@ use crate::error::Error;
 use crate::panel::PanelSpec;
 use crate::colormap::Normalize;
 use crate::render::model::{
-    BarSeries, BoxplotSeries, CompiledFigure, CompiledPanel, CompiledSeries, ContourSeries,
-    FillBetweenSeries, HistSeries, ImageSeries, LineSeries, PanelLayout, TextSeries,
+    AxHLineSeries, AxHSpanSeries, AxVLineSeries, AxVSpanSeries, BarHSeries, BarSeries,
+    BoxplotSeries, CompiledFigure, CompiledPanel, CompiledSeries, ContourSeries, ErrorBarSeries,
+    FillBetweenSeries, HistSeries, ImageSeries, LineSeries, PanelLayout, ScatterSeries, StepSeries,
+    TextSeries,
 };
 use crate::series::{Scale, Series};
 
@@ -91,6 +93,75 @@ fn compile_series(series: &Series) -> CompiledSeries {
                 width: style.width_value(),
             })
         }
+        Series::Scatter { x, y, style } => {
+            let color = if style.alpha_value() < 1.0 {
+                style.color_value().with_alpha(style.alpha_value())
+            } else {
+                style.color_value()
+            };
+            CompiledSeries::Scatter(ScatterSeries {
+                x: x.clone(),
+                y: y.clone(),
+                label: style.label_value().unwrap_or("").to_string(),
+                color,
+                size: style.size_value(),
+                marker: style.marker_value(),
+                alpha: style.alpha_value(),
+                edge_color: style.edge_color_value(),
+                edge_width: style.edge_width_value(),
+            })
+        }
+        Series::ErrorBar { x, y, style } => {
+            let color = if style.alpha_value() < 1.0 {
+                style.color_value().with_alpha(style.alpha_value())
+            } else {
+                style.color_value()
+            };
+            let ecolor = style
+                .ecolor_value()
+                .map(|c| {
+                    if style.alpha_value() < 1.0 {
+                        c.with_alpha(style.alpha_value())
+                    } else {
+                        c
+                    }
+                })
+                .unwrap_or(color);
+            CompiledSeries::ErrorBar(ErrorBarSeries {
+                x: x.clone(),
+                y: y.clone(),
+                yerr: style.yerr_value().map(|s| s.to_vec()),
+                yerr_lower: style.yerr_lower_value().map(|s| s.to_vec()),
+                xerr: style.xerr_value().map(|s| s.to_vec()),
+                xerr_lower: style.xerr_lower_value().map(|s| s.to_vec()),
+                label: style.label_value().unwrap_or("").to_string(),
+                color,
+                line_width: style.line_width_value(),
+                dash: style.dash_value(),
+                marker: style.marker_value(),
+                capsize: style.capsize_value(),
+                capthick: style.capthick_value(),
+                elinewidth: style.elinewidth_value(),
+                ecolor,
+                alpha: style.alpha_value(),
+            })
+        }
+        Series::Step { x, y, style } => {
+            let color = if style.alpha_value() < 1.0 {
+                style.color_value().with_alpha(style.alpha_value())
+            } else {
+                style.color_value()
+            };
+            CompiledSeries::Step(StepSeries {
+                x: x.clone(),
+                y: y.clone(),
+                where_step: style.where_step_value(),
+                label: style.label_value().unwrap_or("").to_string(),
+                color,
+                dash: style.dash_value(),
+                width: style.width_value(),
+            })
+        }
         Series::Boxplot { groups, style } => CompiledSeries::Boxplot(BoxplotSeries {
             groups: groups.clone(),
             horizontal: style.horizontal_value(),
@@ -105,6 +176,14 @@ fn compile_series(series: &Series) -> CompiledSeries {
             heights: heights.clone(),
             color: style.color_value(),
             width: style.width_value(),
+            baseline: style.baseline_value(),
+            label: style.label_value().unwrap_or("").to_string(),
+        }),
+        Series::BarH { y, widths, style } => CompiledSeries::BarH(BarHSeries {
+            y: y.clone(),
+            widths: widths.clone(),
+            color: style.color_value(),
+            height: style.height_value(),
             baseline: style.baseline_value(),
             label: style.label_value().unwrap_or("").to_string(),
         }),
@@ -168,6 +247,34 @@ fn compile_series(series: &Series) -> CompiledSeries {
             text: text.clone(),
             color: style.color_value(),
             fontsize: style.fontsize_value(),
+        }),
+        Series::AxHLine { y, style } => CompiledSeries::AxHLine(AxHLineSeries {
+            y: *y,
+            color: style.color_value(),
+            width: style.width_value(),
+            dash: style.dash_value(),
+            label: style.label_value().unwrap_or("").to_string(),
+        }),
+        Series::AxVLine { x, style } => CompiledSeries::AxVLine(AxVLineSeries {
+            x: *x,
+            color: style.color_value(),
+            width: style.width_value(),
+            dash: style.dash_value(),
+            label: style.label_value().unwrap_or("").to_string(),
+        }),
+        Series::AxHSpan { ymin, ymax, style } => CompiledSeries::AxHSpan(AxHSpanSeries {
+            ymin: *ymin,
+            ymax: *ymax,
+            color: style.color_value().with_alpha(style.alpha_value()),
+            alpha: style.alpha_value(),
+            label: style.label_value().unwrap_or("").to_string(),
+        }),
+        Series::AxVSpan { xmin, xmax, style } => CompiledSeries::AxVSpan(AxVSpanSeries {
+            xmin: *xmin,
+            xmax: *xmax,
+            color: style.color_value().with_alpha(style.alpha_value()),
+            alpha: style.alpha_value(),
+            label: style.label_value().unwrap_or("").to_string(),
         }),
     }
 }

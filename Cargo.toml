@@ -64,3 +64,7 @@ path = "examples/boxplot_tilt.rs"
 [[example]]
 name = "title_center"
 path = "examples/title_center.rs"
+
+[[example]]
+name = "scatter_errorbar"
+path = "examples/scatter_errorbar.rs"

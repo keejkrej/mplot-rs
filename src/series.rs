@@ -22,7 +22,7 @@ pub enum LineDash {
     Dotted,
 }
 
-/// Marker style for line series.
+/// Marker style for line and scatter series.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Marker {
     #[default]
@@ -30,6 +30,11 @@ pub enum Marker {
     Circle,
     Square,
     Cross,
+    Plus,
+    TriangleUp,
+    TriangleDown,
+    Diamond,
+    Star,
 }
 
 /// Styling for line series.
@@ -550,6 +555,446 @@ impl TextStyle {
     }
 }
 
+/// Styling for scatter series.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ScatterStyle {
+    color: Color,
+    size: f64,
+    marker: Marker,
+    alpha: f64,
+    edge_color: Option<Color>,
+    edge_width: f64,
+    label: Option<String>,
+}
+
+impl Default for ScatterStyle {
+    fn default() -> Self {
+        ScatterStyle {
+            color: Color::TABLEAU[0],
+            size: 36.0,
+            marker: Marker::Circle,
+            alpha: 1.0,
+            edge_color: None,
+            edge_width: 1.0,
+            label: None,
+        }
+    }
+}
+
+impl ScatterStyle {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn color(mut self, color: Color) -> Self {
+        self.color = color;
+        self
+    }
+
+    pub fn size(mut self, size: f64) -> Self {
+        self.size = size.max(0.0);
+        self
+    }
+
+    pub fn marker(mut self, marker: Marker) -> Self {
+        self.marker = marker;
+        self
+    }
+
+    pub fn alpha(mut self, alpha: f64) -> Self {
+        self.alpha = alpha.clamp(0.0, 1.0);
+        self
+    }
+
+    pub fn edge_color(mut self, color: Color) -> Self {
+        self.edge_color = Some(color);
+        self
+    }
+
+    pub fn edge_width(mut self, width: f64) -> Self {
+        self.edge_width = width.max(0.0);
+        self
+    }
+
+    pub fn label(mut self, label: impl Into<String>) -> Self {
+        self.label = Some(label.into());
+        self
+    }
+
+    pub(crate) fn color_value(&self) -> Color {
+        self.color
+    }
+
+    pub(crate) fn size_value(&self) -> f64 {
+        self.size
+    }
+
+    pub(crate) fn marker_value(&self) -> Marker {
+        self.marker
+    }
+
+    pub(crate) fn alpha_value(&self) -> f64 {
+        self.alpha
+    }
+
+    pub(crate) fn edge_color_value(&self) -> Option<Color> {
+        self.edge_color
+    }
+
+    pub(crate) fn edge_width_value(&self) -> f64 {
+        self.edge_width
+    }
+
+    pub(crate) fn label_value(&self) -> Option<&str> {
+        self.label.as_deref()
+    }
+}
+
+/// Styling for errorbar series.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ErrorBarStyle {
+    yerr: Option<Vec<f64>>,
+    yerr_lower: Option<Vec<f64>>,
+    xerr: Option<Vec<f64>>,
+    xerr_lower: Option<Vec<f64>>,
+    color: Color,
+    line_width: f64,
+    dash: LineDash,
+    marker: Marker,
+    capsize: f64,
+    capthick: f64,
+    elinewidth: f64,
+    ecolor: Option<Color>,
+    alpha: f64,
+    label: Option<String>,
+}
+
+impl Default for ErrorBarStyle {
+    fn default() -> Self {
+        ErrorBarStyle {
+            yerr: None,
+            yerr_lower: None,
+            xerr: None,
+            xerr_lower: None,
+            color: Color::TABLEAU[0],
+            line_width: DEFAULT_LINE_WIDTH,
+            dash: LineDash::Solid,
+            marker: Marker::Circle,
+            capsize: 3.0,
+            capthick: 1.0,
+            elinewidth: 1.5,
+            ecolor: None,
+            alpha: 1.0,
+            label: None,
+        }
+    }
+}
+
+impl ErrorBarStyle {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn yerr<'a, T, U>(mut self, yerr: &'a T) -> Self
+    where
+        T: AsVector<'a, U>,
+        U: 'a + Num + NumCast + Copy,
+    {
+        self.yerr = Some(vector_to_f64(yerr));
+        self
+    }
+
+    pub fn yerr_asymmetric<'a, T, U>(mut self, lower: &'a T, upper: &'a T) -> Self
+    where
+        T: AsVector<'a, U>,
+        U: 'a + Num + NumCast + Copy,
+    {
+        self.yerr_lower = Some(vector_to_f64(lower));
+        self.yerr = Some(vector_to_f64(upper));
+        self
+    }
+
+    pub fn xerr<'a, T, U>(mut self, xerr: &'a T) -> Self
+    where
+        T: AsVector<'a, U>,
+        U: 'a + Num + NumCast + Copy,
+    {
+        self.xerr = Some(vector_to_f64(xerr));
+        self
+    }
+
+    pub fn xerr_asymmetric<'a, T, U>(mut self, lower: &'a T, upper: &'a T) -> Self
+    where
+        T: AsVector<'a, U>,
+        U: 'a + Num + NumCast + Copy,
+    {
+        self.xerr_lower = Some(vector_to_f64(lower));
+        self.xerr = Some(vector_to_f64(upper));
+        self
+    }
+
+    pub fn color(mut self, color: Color) -> Self {
+        self.color = color;
+        self
+    }
+
+    pub fn line_width(mut self, width: f64) -> Self {
+        self.line_width = width;
+        self
+    }
+
+    pub fn dash(mut self, dash: LineDash) -> Self {
+        self.dash = dash;
+        self
+    }
+
+    pub fn marker(mut self, marker: Marker) -> Self {
+        self.marker = marker;
+        self
+    }
+
+    pub fn capsize(mut self, capsize: f64) -> Self {
+        self.capsize = capsize.max(0.0);
+        self
+    }
+
+    pub fn capthick(mut self, capthick: f64) -> Self {
+        self.capthick = capthick.max(0.0);
+        self
+    }
+
+    pub fn elinewidth(mut self, elinewidth: f64) -> Self {
+        self.elinewidth = elinewidth.max(0.0);
+        self
+    }
+
+    pub fn ecolor(mut self, color: Color) -> Self {
+        self.ecolor = Some(color);
+        self
+    }
+
+    pub fn alpha(mut self, alpha: f64) -> Self {
+        self.alpha = alpha.clamp(0.0, 1.0);
+        self
+    }
+
+    pub fn label(mut self, label: impl Into<String>) -> Self {
+        self.label = Some(label.into());
+        self
+    }
+
+    pub(crate) fn yerr_value(&self) -> Option<&[f64]> {
+        self.yerr.as_deref()
+    }
+
+    pub(crate) fn yerr_lower_value(&self) -> Option<&[f64]> {
+        self.yerr_lower.as_deref()
+    }
+
+    pub(crate) fn xerr_value(&self) -> Option<&[f64]> {
+        self.xerr.as_deref()
+    }
+
+    pub(crate) fn xerr_lower_value(&self) -> Option<&[f64]> {
+        self.xerr_lower.as_deref()
+    }
+
+    pub(crate) fn color_value(&self) -> Color {
+        self.color
+    }
+
+    pub(crate) fn line_width_value(&self) -> f64 {
+        self.line_width
+    }
+
+    pub(crate) fn dash_value(&self) -> LineDash {
+        self.dash
+    }
+
+    pub(crate) fn marker_value(&self) -> Marker {
+        self.marker
+    }
+
+    pub(crate) fn capsize_value(&self) -> f64 {
+        self.capsize
+    }
+
+    pub(crate) fn capthick_value(&self) -> f64 {
+        self.capthick
+    }
+
+    pub(crate) fn elinewidth_value(&self) -> f64 {
+        self.elinewidth
+    }
+
+    pub(crate) fn ecolor_value(&self) -> Option<Color> {
+        self.ecolor
+    }
+
+    pub(crate) fn alpha_value(&self) -> f64 {
+        self.alpha
+    }
+
+    pub(crate) fn label_value(&self) -> Option<&str> {
+        self.label.as_deref()
+    }
+}
+
+/// Where the step occurs in a step plot.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum StepWhere {
+    #[default]
+    Pre,
+    Post,
+    Mid,
+}
+
+/// Styling for step plots.
+#[derive(Clone, Debug, PartialEq)]
+pub struct StepStyle {
+    where_step: StepWhere,
+    color: Color,
+    width: f64,
+    dash: LineDash,
+    label: Option<String>,
+    alpha: f64,
+}
+
+impl Default for StepStyle {
+    fn default() -> Self {
+        StepStyle {
+            where_step: StepWhere::Pre,
+            color: Color::TABLEAU[0],
+            width: DEFAULT_LINE_WIDTH,
+            dash: LineDash::Solid,
+            label: None,
+            alpha: 1.0,
+        }
+    }
+}
+
+impl StepStyle {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn where_step(mut self, where_step: StepWhere) -> Self {
+        self.where_step = where_step;
+        self
+    }
+
+    pub fn color(mut self, color: Color) -> Self {
+        self.color = color;
+        self
+    }
+
+    pub fn width(mut self, width: f64) -> Self {
+        self.width = width;
+        self
+    }
+
+    pub fn dash(mut self, dash: LineDash) -> Self {
+        self.dash = dash;
+        self
+    }
+
+    pub fn label(mut self, label: impl Into<String>) -> Self {
+        self.label = Some(label.into());
+        self
+    }
+
+    pub fn alpha(mut self, alpha: f64) -> Self {
+        self.alpha = alpha.clamp(0.0, 1.0);
+        self
+    }
+
+    pub(crate) fn where_step_value(&self) -> StepWhere {
+        self.where_step
+    }
+
+    pub(crate) fn color_value(&self) -> Color {
+        self.color
+    }
+
+    pub(crate) fn width_value(&self) -> f64 {
+        self.width
+    }
+
+    pub(crate) fn dash_value(&self) -> LineDash {
+        self.dash
+    }
+
+    pub(crate) fn label_value(&self) -> Option<&str> {
+        self.label.as_deref()
+    }
+
+    pub(crate) fn alpha_value(&self) -> f64 {
+        self.alpha
+    }
+}
+
+/// Styling for horizontal bar charts.
+#[derive(Clone, Debug, PartialEq)]
+pub struct BarHStyle {
+    color: Color,
+    height: f64,
+    baseline: f64,
+    label: Option<String>,
+}
+
+impl Default for BarHStyle {
+    fn default() -> Self {
+        BarHStyle {
+            color: Color::TABLEAU[0],
+            height: 0.8,
+            baseline: 0.0,
+            label: None,
+        }
+    }
+}
+
+impl BarHStyle {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn color(mut self, color: Color) -> Self {
+        self.color = color;
+        self
+    }
+
+    pub fn height(mut self, height: f64) -> Self {
+        self.height = height;
+        self
+    }
+
+    pub fn baseline(mut self, baseline: f64) -> Self {
+        self.baseline = baseline;
+        self
+    }
+
+    pub fn label(mut self, label: impl Into<String>) -> Self {
+        self.label = Some(label.into());
+        self
+    }
+
+    pub(crate) fn color_value(&self) -> Color {
+        self.color
+    }
+
+    pub(crate) fn height_value(&self) -> f64 {
+        self.height
+    }
+
+    pub(crate) fn baseline_value(&self) -> f64 {
+        self.baseline
+    }
+
+    pub(crate) fn label_value(&self) -> Option<&str> {
+        self.label.as_deref()
+    }
+}
+
 /// A drawable data series on a panel.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Series {
@@ -557,6 +1002,21 @@ pub enum Series {
         x: Vec<f64>,
         y: Vec<f64>,
         style: LineStyle,
+    },
+    Scatter {
+        x: Vec<f64>,
+        y: Vec<f64>,
+        style: ScatterStyle,
+    },
+    ErrorBar {
+        x: Vec<f64>,
+        y: Vec<f64>,
+        style: ErrorBarStyle,
+    },
+    Step {
+        x: Vec<f64>,
+        y: Vec<f64>,
+        style: StepStyle,
     },
     Boxplot {
         groups: Vec<Vec<f64>>,
@@ -566,6 +1026,11 @@ pub enum Series {
         x: Vec<f64>,
         heights: Vec<f64>,
         style: BarStyle,
+    },
+    BarH {
+        y: Vec<f64>,
+        widths: Vec<f64>,
+        style: BarHStyle,
     },
     Histogram {
         data: Vec<f64>,
@@ -595,6 +1060,24 @@ pub enum Series {
         text: String,
         style: TextStyle,
     },
+    AxHLine {
+        y: f64,
+        style: LineStyle,
+    },
+    AxVLine {
+        x: f64,
+        style: LineStyle,
+    },
+    AxHSpan {
+        ymin: f64,
+        ymax: f64,
+        style: FillBetweenStyle,
+    },
+    AxVSpan {
+        xmin: f64,
+        xmax: f64,
+        style: FillBetweenStyle,
+    },
 }
 
 impl Series {
@@ -604,6 +1087,42 @@ impl Series {
         U: 'a + Num + NumCast + Copy,
     {
         Series::Line {
+            x: vector_to_f64(x),
+            y: vector_to_f64(y),
+            style,
+        }
+    }
+
+    pub fn scatter<'a, T, U>(x: &'a T, y: &'a T, style: ScatterStyle) -> Self
+    where
+        T: AsVector<'a, U>,
+        U: 'a + Num + NumCast + Copy,
+    {
+        Series::Scatter {
+            x: vector_to_f64(x),
+            y: vector_to_f64(y),
+            style,
+        }
+    }
+
+    pub fn errorbar<'a, T, U>(x: &'a T, y: &'a T, style: ErrorBarStyle) -> Self
+    where
+        T: AsVector<'a, U>,
+        U: 'a + Num + NumCast + Copy,
+    {
+        Series::ErrorBar {
+            x: vector_to_f64(x),
+            y: vector_to_f64(y),
+            style,
+        }
+    }
+
+    pub fn step<'a, T, U>(x: &'a T, y: &'a T, style: StepStyle) -> Self
+    where
+        T: AsVector<'a, U>,
+        U: 'a + Num + NumCast + Copy,
+    {
+        Series::Step {
             x: vector_to_f64(x),
             y: vector_to_f64(y),
             style,
@@ -621,6 +1140,18 @@ impl Series {
         Series::Bar {
             x: x.to_vec(),
             heights: heights.to_vec(),
+            style,
+        }
+    }
+
+    pub fn barh<'a, T, U>(y: &'a T, widths: &'a T, style: BarHStyle) -> Self
+    where
+        T: AsVector<'a, U>,
+        U: 'a + Num + NumCast + Copy,
+    {
+        Series::BarH {
+            y: vector_to_f64(y),
+            widths: vector_to_f64(widths),
             style,
         }
     }
@@ -670,5 +1201,21 @@ impl Series {
             text: text.into(),
             style,
         }
+    }
+
+    pub fn axhline(y: f64, style: LineStyle) -> Self {
+        Series::AxHLine { y, style }
+    }
+
+    pub fn axvline(x: f64, style: LineStyle) -> Self {
+        Series::AxVLine { x, style }
+    }
+
+    pub fn axhspan(ymin: f64, ymax: f64, style: FillBetweenStyle) -> Self {
+        Series::AxHSpan { ymin, ymax, style }
+    }
+
+    pub fn axvspan(xmin: f64, xmax: f64, style: FillBetweenStyle) -> Self {
+        Series::AxVSpan { xmin, xmax, style }
     }
 }

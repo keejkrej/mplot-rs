@@ -407,3 +407,245 @@ fn test_constrained_colorbar() -> Result<()> {
     assert!(metadata.len() > 1_000);
     Ok(())
 }
+
+#[test]
+fn test_scatter() -> Result<()> {
+    std::fs::create_dir_all(OUT_DIR).ok();
+
+    let x = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0];
+    let y = [0.5, 1.8, 1.2, 3.5, 2.8, 4.5];
+
+    let figure = Figure::builder()
+        .panel(GridPos::new(1, 1, 1), |p| {
+            p.scatter(
+                &x,
+                &y,
+                ScatterStyle::new()
+                    .color(Color::TABLEAU[0])
+                    .size(50.0)
+                    .marker(Marker::Diamond)
+                    .edge_color(Color::hex("#000000"))
+                    .edge_width(1.2)
+                    .label("samples"),
+            )
+            .axes(
+                AxesStyle::new()
+                    .title("Scatter Plot")
+                    .x_label("x")
+                    .y_label("y")
+                    .legend(LegendStyle::show()),
+            );
+        })
+        .build()?;
+
+    let path = Path::new(OUT_DIR).join("test_scatter.png");
+    figure.save(&path, SaveOptions::default())?;
+
+    let metadata = std::fs::metadata(path).map_err(|_| Error::Io("output missing".into()))?;
+    assert!(metadata.len() > 1_000);
+    Ok(())
+}
+
+#[test]
+fn test_errorbar() -> Result<()> {
+    std::fs::create_dir_all(OUT_DIR).ok();
+
+    let x = [1.0, 2.0, 3.0, 4.0];
+    let y = [2.0, 3.5, 2.8, 4.2];
+    let yerr = [0.3, 0.5, 0.4, 0.6];
+    let xerr = [0.1, 0.15, 0.1, 0.2];
+
+    let figure = Figure::builder()
+        .panel(GridPos::new(1, 1, 1), |p| {
+            p.errorbar(
+                &x,
+                &y,
+                ErrorBarStyle::new()
+                    .yerr(&yerr)
+                    .xerr(&xerr)
+                    .color(Color::TABLEAU[1])
+                    .capsize(4.0)
+                    .capthick(1.2)
+                    .marker(Marker::Circle)
+                    .label("measurements"),
+            )
+            .axes(
+                AxesStyle::new()
+                    .title("Error Bar Plot")
+                    .x_label("condition")
+                    .y_label("response")
+                    .legend(LegendStyle::show()),
+            );
+        })
+        .build()?;
+
+    let path = Path::new(OUT_DIR).join("test_errorbar.png");
+    figure.save(&path, SaveOptions::default())?;
+
+    let metadata = std::fs::metadata(path).map_err(|_| Error::Io("output missing".into()))?;
+    assert!(metadata.len() > 1_000);
+    Ok(())
+}
+
+#[test]
+fn test_step() -> Result<()> {
+    std::fs::create_dir_all(OUT_DIR).ok();
+
+    let x = [0.0, 1.0, 2.0, 3.0, 4.0];
+    let y = [1.0, 0.8, 0.6, 0.3, 0.0];
+
+    let figure = Figure::builder()
+        .panel(GridPos::new(1, 1, 1), |p| {
+            p.step(
+                &x,
+                &y,
+                StepStyle::new()
+                    .where_step(StepWhere::Post)
+                    .color(Color::TABLEAU[2])
+                    .width(2.0)
+                    .label("survival"),
+            )
+            .axes(
+                AxesStyle::new()
+                    .title("Kaplan-Meier Step Plot")
+                    .x_label("time")
+                    .y_label("survival probability")
+                    .legend(LegendStyle::show()),
+            );
+        })
+        .build()?;
+
+    let path = Path::new(OUT_DIR).join("test_step.png");
+    figure.save(&path, SaveOptions::default())?;
+
+    let metadata = std::fs::metadata(path).map_err(|_| Error::Io("output missing".into()))?;
+    assert!(metadata.len() > 1_000);
+    Ok(())
+}
+
+#[test]
+fn test_barh() -> Result<()> {
+    std::fs::create_dir_all(OUT_DIR).ok();
+
+    let y = [1.0, 2.0, 3.0, 4.0];
+    let widths = [10.0, 25.0, 18.0, 32.0];
+
+    let figure = Figure::builder()
+        .panel(GridPos::new(1, 1, 1), |p| {
+            p.barh(
+                &y,
+                &widths,
+                BarHStyle::new()
+                    .height(0.6)
+                    .color(Color::TABLEAU[3])
+                    .label("scores"),
+            )
+            .axes(
+                AxesStyle::new()
+                    .title("Horizontal Bar Plot")
+                    .x_label("score")
+                    .y_label("category")
+                    .legend(LegendStyle::show()),
+            );
+        })
+        .build()?;
+
+    let path = Path::new(OUT_DIR).join("test_barh.png");
+    figure.save(&path, SaveOptions::default())?;
+
+    let metadata = std::fs::metadata(path).map_err(|_| Error::Io("output missing".into()))?;
+    assert!(metadata.len() > 1_000);
+    Ok(())
+}
+
+#[test]
+fn test_axlines_and_spans() -> Result<()> {
+    std::fs::create_dir_all(OUT_DIR).ok();
+
+    let x = [0.0, 1.0, 2.0, 3.0, 4.0];
+    let y = [0.0, 2.0, 1.5, 3.0, 2.5];
+
+    let figure = Figure::builder()
+        .panel(GridPos::new(1, 1, 1), |p| {
+            p.axhspan(
+                1.0,
+                2.0,
+                FillBetweenStyle::new()
+                    .color(Color::hex("#cccccc"))
+                    .alpha(0.3)
+                    .label("nominal range"),
+            )
+            .axvspan(
+                1.5,
+                2.5,
+                FillBetweenStyle::new()
+                    .color(Color::hex("#ddddff"))
+                    .alpha(0.3),
+            )
+            .axhline(
+                2.0,
+                LineStyle::new()
+                    .color(Color::hex("#d62728"))
+                    .dash(LineDash::Dashed)
+                    .label("threshold"),
+            )
+            .axvline(
+                2.0,
+                LineStyle::new()
+                    .color(Color::hex("#2ca02c"))
+                    .dash(LineDash::Dotted),
+            )
+            .line(&x, &y, LineStyle::new().color(Color::TABLEAU[0]))
+            .axes(
+                AxesStyle::new()
+                    .title("Reference Lines and Spans")
+                    .x_label("x")
+                    .y_label("y")
+                    .legend(LegendStyle::show()),
+            );
+        })
+        .build()?;
+
+    let path = Path::new(OUT_DIR).join("test_axlines_and_spans.png");
+    figure.save(&path, SaveOptions::default())?;
+
+    let metadata = std::fs::metadata(path).map_err(|_| Error::Io("output missing".into()))?;
+    assert!(metadata.len() > 1_000);
+    Ok(())
+}
+
+#[test]
+fn test_new_colormaps_image() -> Result<()> {
+    std::fs::create_dir_all(OUT_DIR).ok();
+
+    let data = vec![0.0, 0.25, 0.5, 0.75, 1.0];
+    for (name, cmap) in [
+        ("plasma", Colormap::Plasma),
+        ("inferno", Colormap::Inferno),
+        ("magma", Colormap::Magma),
+        ("cividis", Colormap::Cividis),
+        ("coolwarm", Colormap::Coolwarm),
+        ("turbo", Colormap::Turbo),
+    ] {
+        let figure = Figure::builder()
+            .panel(GridPos::new(1, 1, 1), |p| {
+                p.image(
+                    data.clone(),
+                    5,
+                    1,
+                    ImageStyle::new()
+                        .extent(0.0, 5.0, 0.0, 1.0)
+                        .colormap(cmap)
+                        .colorbar(true),
+                )
+                .axes(AxesStyle::new().title(name));
+            })
+            .build()?;
+
+        let path = Path::new(OUT_DIR).join(format!("test_cmap_{name}.png"));
+        figure.save(&path, SaveOptions::default())?;
+        let metadata = std::fs::metadata(path).map_err(|_| Error::Io("output missing".into()))?;
+        assert!(metadata.len() > 1_000);
+    }
+    Ok(())
+}

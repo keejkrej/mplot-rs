@@ -343,6 +343,49 @@ impl<'a> PanelBuilder<'a> {
         self
     }
 
+    pub fn scatter<'b, T, U>(
+        &mut self,
+        x: &'b T,
+        y: &'b T,
+        style: crate::series::ScatterStyle,
+    ) -> &mut Self
+    where
+        T: AsVector<'b, U>,
+        U: 'b + Num + NumCast + Copy,
+    {
+        self.spec
+            .series
+            .push(crate::series::Series::scatter(x, y, style));
+        self
+    }
+
+    pub fn errorbar<'b, T, U>(
+        &mut self,
+        x: &'b T,
+        y: &'b T,
+        style: crate::series::ErrorBarStyle,
+    ) -> &mut Self
+    where
+        T: AsVector<'b, U>,
+        U: 'b + Num + NumCast + Copy,
+    {
+        self.spec
+            .series
+            .push(crate::series::Series::errorbar(x, y, style));
+        self
+    }
+
+    pub fn step<'b, T, U>(&mut self, x: &'b T, y: &'b T, style: crate::series::StepStyle) -> &mut Self
+    where
+        T: AsVector<'b, U>,
+        U: 'b + Num + NumCast + Copy,
+    {
+        self.spec
+            .series
+            .push(crate::series::Series::step(x, y, style));
+        self
+    }
+
     pub fn boxplot(&mut self, groups: &[Vec<f64>], style: crate::series::BoxplotStyle) -> &mut Self {
         self.spec
             .series
@@ -354,6 +397,22 @@ impl<'a> PanelBuilder<'a> {
         self.spec
             .series
             .push(crate::series::Series::bar(x, heights, style));
+        self
+    }
+
+    pub fn barh<'b, T, U>(
+        &mut self,
+        y: &'b T,
+        widths: &'b T,
+        style: crate::series::BarHStyle,
+    ) -> &mut Self
+    where
+        T: AsVector<'b, U>,
+        U: 'b + Num + NumCast + Copy,
+    {
+        self.spec
+            .series
+            .push(crate::series::Series::barh(y, widths, style));
         self
     }
 
@@ -417,6 +476,44 @@ impl<'a> PanelBuilder<'a> {
         self.spec
             .series
             .push(crate::series::Series::text(x, y, text, style));
+        self
+    }
+
+    pub fn axhline(&mut self, y: f64, style: crate::series::LineStyle) -> &mut Self {
+        self.spec
+            .series
+            .push(crate::series::Series::axhline(y, style));
+        self
+    }
+
+    pub fn axvline(&mut self, x: f64, style: crate::series::LineStyle) -> &mut Self {
+        self.spec
+            .series
+            .push(crate::series::Series::axvline(x, style));
+        self
+    }
+
+    pub fn axhspan(
+        &mut self,
+        ymin: f64,
+        ymax: f64,
+        style: crate::series::FillBetweenStyle,
+    ) -> &mut Self {
+        self.spec
+            .series
+            .push(crate::series::Series::axhspan(ymin, ymax, style));
+        self
+    }
+
+    pub fn axvspan(
+        &mut self,
+        xmin: f64,
+        xmax: f64,
+        style: crate::series::FillBetweenStyle,
+    ) -> &mut Self {
+        self.spec
+            .series
+            .push(crate::series::Series::axvspan(xmin, xmax, style));
         self
     }
 
