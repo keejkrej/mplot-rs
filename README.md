@@ -1,8 +1,26 @@
 # mplot
 
+[![Crates.io](https://img.shields.io/crates/v/mplot.svg)](https://crates.io/crates/mplot)
+[![Documentation](https://docs.rs/mplot/badge.svg)](https://docs.rs/mplot)
+[![CI](https://github.com/keejkrej/mplot-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/keejkrej/mplot-rs/actions/workflows/ci.yml)
+[![License: MIT OR Apache-2.0](https://img.shields.io/badge/License-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE-MIT)
+
 Native Rust 2D plotting with matplotlib-inspired rendering fidelity.
 
 **mplot** renders figures directly in Rust (PNG, SVG, and PDF) using an idiomatic builder API: configure panels with typed styles, add series, then export.
+
+---
+
+## Installation
+
+Add `mplot` to your `Cargo.toml`:
+
+```toml
+[dependencies]
+mplot = "1.0.0"
+```
+
+---
 
 ## Quick start
 
@@ -52,7 +70,9 @@ cargo run --example advanced_plots
 cargo run --example gallery
 ```
 
-## API overview
+---
+
+## API Overview
 
 | Type | Role |
 |------|------|
@@ -75,32 +95,49 @@ Typical flow:
 
 Import everything common via `use mplot::prelude::*;`.
 
+---
+
 ## Features
 
-- Subplot grids via `GridPos` or `GridSpec` (rowspan/colspan)
-- Comprehensive series: line, scatter (variable sizes & colormapped values), error bars (with caps), stem plots (vertical and horizontal), stacked area plots (`stackplot`), step curves, stairs plots, 2D vector fields (`quiver`), pie charts (with explosion and autopct), 2D histograms (`hist2d`), horizontal and vertical line segments (`hlines`, `vlines`), event/raster plots (`eventplot`), vertical/horizontal stacked bars (`bottom` and `left`), bar error bars (`yerr` and `xerr`), histograms, shaded regions (`fill_between`, `fill_betweenx`, `axhspan`, `axvspan`), annotations with callout arrows and bounding boxes (`annotate`, `BboxStyle`), reference lines (`axline`, `axhline`, `axvline`), boxplots, violin plots (KDE density, medians, extrema), heatmaps (`image`), and contour lines
-- Axes spine visibility & styling (`AxesStyle::despine()` to hide top/right spines, or `spines_visible(top, right, bottom, left)`)
-- Legend styling & placement (`LegendLoc::UpperRight`, `LowerLeft`, `Center`, etc., `ncols`, `title`, and `frameon`)
-- Tick formatting (`TickFormat::Percent`, `TickFormat::Engineering`, scientific, custom closures)
-- Inverted axes and reverse ranges (`invert_x(true)`, `invert_y(true)`, or `y_range(max, min)`)
-- Custom grid styling (`GridStyle::new().color(...).width(...).alpha(...)`)
-- PNG, SVG, and PDF export (`figure.save("out.pdf", …)`)
-- Constrained layout for multi-panel figures and colorbar insets (`.constrained_layout(true)`)
-- Linear and log x/y scales (`Scale::Log` on `AxesStyle::x_scale` / `y_scale`)
-- Custom tick labels and rotated tick labels (`AxesStyle::x_tick_labels`, `AxesStyle::x_tick_rotation`)
-- Matplotlib standard markers: `Circle`, `Square`, `Cross`, `Plus`, `TriangleUp`, `TriangleDown`, `TriangleLeft`, `TriangleRight`, `Diamond`, `Star`, `Pentagon`, `Hexagon`, `Point`, `VLine`, `HLine`
-- Perceptual and sequential colormaps: `Viridis`, `Plasma`, `Inferno`, `Magma`, `Cividis`, `Coolwarm`, `Turbo`, `Greys`, `Blues`, `Reds`, `Spectral`, `RdBu`, `YlGnBu`, and reversed variants (`.reversed()`)
-- Figure size in inches (`Size::inches`); PNG saves default to **200 DPI** for sharp text (override with `SaveOptions::dpi`)
-- Matplotlib-inspired default styling (DejaVu Sans, default line width, boxplot colors, axes titles centered on axes box)
+- **Subplot layouts**: Grids via `GridPos` or `GridSpec` (arbitrary rowspan/colspan)
+- **Comprehensive series**: Line, scatter (variable sizes & colormapped values), error bars (with caps), stem plots (vertical and horizontal), stacked area plots (`stackplot`), step curves, stairs plots, 2D vector fields (`quiver`), pie charts (with explosion and autopct), 2D histograms (`hist2d`), horizontal and vertical line segments (`hlines`, `vlines`), event/raster plots (`eventplot`), vertical/horizontal stacked bars (`bottom` and `left`), bar error bars (`yerr` and `xerr`), histograms, shaded regions (`fill_between`, `fill_betweenx`, `axhspan`, `axvspan`), annotations with callout arrows and bounding boxes (`annotate`, `BboxStyle`), reference lines (`axline`, `axhline`, `axvline`), boxplots, violin plots (KDE density, medians, extrema), heatmaps (`image`), and contour lines
+- **Axes spine control**: Visibility & styling (`AxesStyle::despine()` to hide top/right spines, or `spines_visible(top, right, bottom, left)`)
+- **Legends**: Placement (`LegendLoc::UpperRight`, `LowerLeft`, `Center`, etc.), `ncols`, `title`, and `frameon`
+- **Tick formatting**: `TickFormat::Percent`, `TickFormat::Engineering`, scientific, custom closures
+- **Inverted axes**: Reverse ranges (`invert_x(true)`, `invert_y(true)`, or `y_range(max, min)`)
+- **Grid styling**: `GridStyle::new().color(...).width(...).alpha(...)`
+- **Export formats**: High-resolution PNG, SVG vector graphics, and vector PDF (`figure.save("out.pdf", …)`)
+- **Layout management**: Constrained layout for multi-panel figures and colorbar insets (`.constrained_layout(true)`)
+- **Scales**: Linear and logarithmic x/y scales (`Scale::Log` on `AxesStyle::x_scale` / `y_scale`)
+- **Tick rotation & labels**: Custom tick labels and rotated tick labels (`AxesStyle::x_tick_labels`, `AxesStyle::x_tick_rotation`)
+- **Standard markers**: `Circle`, `Square`, `Cross`, `Plus`, `TriangleUp`, `TriangleDown`, `TriangleLeft`, `TriangleRight`, `Diamond`, `Star`, `Pentagon`, `Hexagon`, `Point`, `VLine`, `HLine`
+- **Perceptual colormaps**: `Viridis`, `Plasma`, `Inferno`, `Magma`, `Cividis`, `Coolwarm`, `Turbo`, `Greys`, `Blues`, `Reds`, `Spectral`, `RdBu`, `YlGnBu`, and reversed variants (`.reversed()`)
+- **Matplotlib defaults**: DejaVu Sans font, standard line widths, boxplot geometry, axes titles centered on axes box
 
-## Fidelity tests
+---
 
-`.venv/bin/python scripts/mpl_reference.py` generates Matplotlib reference PNGs under `tests/fidelity/golden/` (uses explicit rcParams synced with `src/render/mpl_style.rs`). Run `cargo test --test fidelity` to compare mplot output against those references.
+## Testing & Parity
 
-Covered chart types: line, subplots, boxplot (linear/log y), violin plot, bar, horizontal bar, histogram, fill_between, image (viridis), contour, scatter, step, stem, errorbar, and log-x / log-log line plots.
+Run unit tests, integration tests, and doctests:
 
-See the rcParams mapping table in [`src/render/mpl_style.rs`](src/render/mpl_style.rs).
+```bash
+cargo test
+```
 
-## Status
+### Fidelity Test Suite
 
-Active development with Matplotlib parity as the north star. Line, scatter, errorbar, step, boxplot, violinplot, bar, barh, histogram, fill-between, image, contour, annotations, and reference line/span series are supported with legends, markers, and colormaps. PNG, SVG, and PDF export plus GridSpec layouts are available.
+Run fidelity tests comparing rendering against golden references:
+
+```bash
+cargo test --test fidelity
+```
+
+---
+
+## License
+
+Dual-licensed under either:
+- MIT License ([LICENSE-MIT](LICENSE-MIT))
+- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
+
+at your option.

@@ -1,3 +1,5 @@
 /target
-/Cargo.lock
 /.venv
+/.scratch
+*.pyc
+__pycache__
