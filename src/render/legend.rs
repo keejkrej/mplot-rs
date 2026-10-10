@@ -1,4 +1,3 @@
-use plotters::coord::types::RangedCoordf64;
 use plotters::coord::Shift;
 use plotters::element::{PathElement, Rectangle};
 use plotters::prelude::*;
@@ -12,8 +11,6 @@ use crate::render::mpl_style::{
     MPL_LEGEND_HANDLE_LENGTH, MPL_LEGEND_HANDLE_TEXT_PAD, MPL_LEGEND_LABEL_SPACING, MPL_SPINE,
 };
 use crate::series::LineDash;
-
-type Chart<'a, DB> = ChartContext<'a, DB, Cartesian2d<RangedCoordf64, RangedCoordf64>>;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct LegendEntry {
@@ -65,34 +62,84 @@ fn entry_from_line(curve: &LineSeries) -> LegendEntry {
     }
 }
 
-/// Pixel box of the legend inside the axes. Independent of the data ranges:
-/// a time axis of hundreds of minutes must not stretch the box.
-pub(crate) fn legend_frame_px(
-    plot_w: i32,
-    plot_h: i32,
-    font_px: i32,
-    label_widths: &[i32],
-    label_height: i32,
-) -> Option<(i32, i32, i32, i32)> {
-    if label_widths.is_empty() || plot_w <= 1 || plot_h <= 1 {
+struct MeasuredLegend {
+    label_widths: Vec<i32>,
+    text_h: i32,
+    horizontal: bool,
+    frame_w: i32,
+    frame_h: i32,
+}
+
+/// Extra top margin so the legend sits above the title and never covers a curve.
+///
+/// `plot_w` is the axes width. One row is used when the labels fit; otherwise
+/// the entries stack. The height includes a gap between the legend and the title.
+pub(crate) fn legend_reserve_px(plot_w: i32, font_px: i32, entries: &[LegendEntry]) -> i32 {
+    let Some(measured) = measure_legend(plot_w, font_px, entries) else {
+        return 0;
+    };
+    measured.frame_h + font_units(MPL_LEGEND_BORDER_AXES_PAD, font_px.max(1))
+}
+
+fn measure_legend(plot_w: i32, font_px: i32, entries: &[LegendEntry]) -> Option<MeasuredLegend> {
+    if entries.is_empty() || plot_w <= 1 {
         return None;
     }
     let font_px = font_px.max(1);
-    let text_h = label_height.max(font_px);
+    let font: FontDesc<'static> = (MPL_FONT, font_px).into_font();
+    let mut label_widths = Vec::with_capacity(entries.len());
+    let mut text_h = font_px;
+    for entry in entries {
+        match font.layout_box(&entry.label) {
+            Ok(((min_x, min_y), (max_x, max_y))) => {
+                label_widths.push((max_x - min_x).max(1));
+                text_h = text_h.max(max_y - min_y);
+            }
+            Err(_) => label_widths.push(font_px * entry.label.chars().count().max(1) as i32 / 2),
+        }
+    }
     let border_pad = font_units(MPL_LEGEND_BORDER_PAD, font_px);
     let label_spacing = font_units(MPL_LEGEND_LABEL_SPACING, font_px);
     let handle_len = font_units(MPL_LEGEND_HANDLE_LENGTH, font_px);
     let handle_text_pad = font_units(MPL_LEGEND_HANDLE_TEXT_PAD, font_px);
-    let axes_pad = font_units(MPL_LEGEND_BORDER_AXES_PAD, font_px);
-    let text_w = label_widths.iter().copied().max().unwrap_or(0).max(0);
     let rows = label_widths.len() as i32;
-    let frame_w = border_pad * 2 + handle_len + handle_text_pad + text_w;
-    let frame_h = border_pad * 2 + rows * text_h + (rows - 1).max(0) * label_spacing;
-    let right = (plot_w - axes_pad).max(0);
-    let top = axes_pad.min(plot_h.saturating_sub(1));
-    let left = (right - frame_w).max(0);
-    let bottom = (top + frame_h).min(plot_h);
-    Some((left, top, right, bottom))
+    let text_w = label_widths.iter().copied().max().unwrap_or(0);
+    let item_gap = label_spacing.max(font_units(0.8, font_px));
+    let horizontal_w = border_pad * 2
+        + label_widths
+            .iter()
+            .map(|width| handle_len + handle_text_pad + *width)
+            .sum::<i32>()
+        + item_gap * (rows - 1).max(0);
+    let vertical_w = border_pad * 2 + handle_len + handle_text_pad + text_w;
+    let horizontal = horizontal_w <= plot_w;
+    let frame_w = if horizontal { horizontal_w } else { vertical_w };
+    let frame_h = if horizontal {
+        border_pad * 2 + text_h
+    } else {
+        border_pad * 2 + rows * text_h + (rows - 1).max(0) * label_spacing
+    };
+    Some(MeasuredLegend {
+        label_widths,
+        text_h,
+        horizontal,
+        frame_w,
+        frame_h,
+    })
+}
+
+/// `left, top, right, bottom` in plot-local pixels. Negative y is above the axes.
+/// `clearance_px` is the title band: the legend's lower edge sits just above it.
+fn legend_frame_above(
+    plot_w: i32,
+    measured: &MeasuredLegend,
+    clearance_px: i32,
+) -> (i32, i32, i32, i32) {
+    let left = ((plot_w - measured.frame_w) / 2).max(0);
+    let right = left + measured.frame_w;
+    let bottom = -clearance_px.max(0);
+    let top = bottom - measured.frame_h;
+    (left, top, right, bottom)
 }
 
 fn font_units(fraction: f64, font_px: i32) -> i32 {
@@ -100,44 +147,36 @@ fn font_units(fraction: f64, font_px: i32) -> i32 {
 }
 
 pub fn draw_legend<DB: DrawingBackend>(
-    chart: &Chart<'_, DB>,
+    area: &DrawingArea<DB, Shift>,
     entries: &[LegendEntry],
     font_px: i32,
     dpi: u32,
+    axes_left: i32,
+    axes_top: i32,
+    axes_w: i32,
+    clearance_px: i32,
 ) -> Result<(), &'static str> {
-    if entries.is_empty() {
-        return Ok(());
-    }
+    // Shapes drawn on the axes area are clipped, so a legend above the title
+    // has to be painted on the panel in cell pixels. Text would otherwise
+    // escape the clip and leave the handles stuck on the top spine.
     let font_px = font_px.max(1);
-    let plot = chart.plotting_area().strip_coord_spec();
-    let (plot_w, plot_h) = plot.dim_in_pixel();
-    let font: FontDesc<'static> = (MPL_FONT, font_px).into_font();
-    let mut label_widths = Vec::with_capacity(entries.len());
-    let mut label_height = font_px;
-    for entry in entries {
-        match font.layout_box(&entry.label) {
-            Ok(((min_x, min_y), (max_x, max_y))) => {
-                label_widths.push((max_x - min_x).max(1));
-                label_height = label_height.max(max_y - min_y);
-            }
-            Err(_) => label_widths.push(font_px * entry.label.chars().count().max(1) as i32 / 2),
-        }
-    }
-    let Some((left, top, right, bottom)) = legend_frame_px(
-        plot_w as i32,
-        plot_h as i32,
-        font_px,
-        &label_widths,
-        label_height,
-    ) else {
+    let Some(measured) = measure_legend(axes_w, font_px, entries) else {
         return Ok(());
     };
-
+    let gap = font_units(MPL_LEGEND_BORDER_AXES_PAD, font_px);
+    let (rel_left, rel_top, rel_right, rel_bottom) =
+        legend_frame_above(axes_w, &measured, clearance_px + gap);
+    let left = axes_left + rel_left;
+    let right = axes_left + rel_right;
+    let top = axes_top + rel_top;
+    let bottom = axes_top + rel_bottom;
+    let plot = area;
     let border_pad = font_units(MPL_LEGEND_BORDER_PAD, font_px);
     let label_spacing = font_units(MPL_LEGEND_LABEL_SPACING, font_px);
     let handle_len = font_units(MPL_LEGEND_HANDLE_LENGTH, font_px);
     let handle_text_pad = font_units(MPL_LEGEND_HANDLE_TEXT_PAD, font_px);
-    let text_h = label_height.max(font_px);
+    let item_gap = label_spacing.max(font_units(0.8, font_px));
+    let text_h = measured.text_h;
     let fill = RGBColor(255, 255, 255);
     let edge = RGBColor(MPL_SPINE.0, MPL_SPINE.1, MPL_SPINE.2);
     plot.draw(&Rectangle::new(
@@ -161,7 +200,29 @@ pub fn draw_legend<DB: DrawingBackend>(
     ))
     .map_err(|_| "failed to draw legend border")?;
 
+    let font: FontDesc<'static> = (MPL_FONT, font_px).into_font();
     let text_style = TextStyle::from(font).pos(Pos::new(HPos::Left, VPos::Center));
+    if measured.horizontal {
+        let mut cursor = left + border_pad;
+        let row_cy = top + border_pad + text_h / 2;
+        for (entry, width) in entries.iter().zip(measured.label_widths.iter()) {
+            let handle_x1 = cursor + handle_len;
+            if entry.patch {
+                draw_legend_patch(&plot, entry, cursor, handle_x1, row_cy, font_px, dpi)?;
+            } else {
+                draw_legend_line(&plot, entry, cursor, handle_x1, row_cy, dpi)?;
+            }
+            plot.draw_text(
+                &entry.label,
+                &text_style,
+                (handle_x1 + handle_text_pad, row_cy),
+            )
+            .map_err(|_| "failed to draw legend label")?;
+            cursor = handle_x1 + handle_text_pad + *width + item_gap;
+        }
+        return Ok(());
+    }
+
     for (index, entry) in entries.iter().enumerate() {
         let row_top = top + border_pad + index as i32 * (text_h + label_spacing);
         let row_cy = row_top + text_h / 2;
@@ -293,14 +354,28 @@ mod tests {
     }
 
     #[test]
-    fn legend_frame_stays_inside_a_small_axes_when_time_is_long() {
-        // 2x2 summary panels are about this size. Three short labels.
-        let frame = legend_frame_px(280, 160, 12, &[22, 42, 36], 12).expect("frame");
-        let (left, top, right, bottom) = frame;
-        assert!(left >= 0 && top >= 0);
-        assert!(right <= 280 && bottom <= 160);
-        assert!(right - left > 42);
-        assert!(bottom - top > 36);
-        assert!(bottom - top < 90);
+    fn legend_sits_above_the_title_and_outside_the_axes() {
+        let entries = ["IQR", "median", "mean"]
+            .into_iter()
+            .map(|label| LegendEntry {
+                label: label.into(),
+                color: MplotColor::TABLEAU[0],
+                dash: LineDash::Solid,
+                width: 1.5,
+                patch: label == "IQR",
+            })
+            .collect::<Vec<_>>();
+        let measured = measure_legend(280, 12, &entries).expect("legend");
+        let clearance = 28;
+        let gap = 7;
+        let (left, top, right, bottom) = legend_frame_above(280, &measured, clearance + gap);
+        assert!(bottom <= -(clearance + gap));
+        assert!(top < bottom);
+        assert!(left >= 0);
+        assert!(right <= 280);
+        assert!(bottom - top < 40 || !measured.horizontal);
+        let reserve = legend_reserve_px(280, 12, &entries);
+        assert!(reserve > measured.frame_h);
+        assert!(reserve < 80);
     }
 }

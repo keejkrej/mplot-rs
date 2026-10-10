@@ -11,7 +11,7 @@ use crate::colormap::{Colormap, Normalize};
 use crate::gridspec::SubplotSlot;
 use crate::panel::TickLabelRotation;
 use crate::render::layout::{pad_inches_px, panel_rect_for_slot};
-use crate::render::legend::{collect_entries, draw_legend};
+use crate::render::legend::{collect_entries, draw_legend, legend_reserve_px};
 use crate::render::model::{CompiledFigure, CompiledPanel, CompiledSeries};
 use crate::render::mpl_style::{
     chart_margin_px, label_area_bottom_px, label_area_left_px, pt_to_px, stroke_width_px,
@@ -184,9 +184,21 @@ fn draw_panel_in_area<DB: DrawingBackend>(
     };
     // Outer chart margin: keep small so gutters dominate spacing, not double-padding.
     let chart_margin = chart_margin_px(figure.dpi).max(2);
+    // Legend sits above the title, outside the axes, so it cannot cover a curve.
+    let legend_entries = if panel.show_legend {
+        collect_entries(&panel.series)
+    } else {
+        Vec::new()
+    };
+    let legend_width = (area_width_px as i32 - label_left as i32 - chart_margin * 2).max(1);
+    let legend_gap = if legend_entries.is_empty() {
+        0
+    } else {
+        legend_reserve_px(legend_width, tick_px as i32, &legend_entries)
+    };
 
     let mut chart = ChartBuilder::on(&plot_area)
-        .margin_top(chart_margin + title_band)
+        .margin_top(chart_margin + title_band + legend_gap)
         .margin_bottom(chart_margin)
         .margin_left(chart_margin)
         .margin_right(chart_margin)
@@ -316,9 +328,18 @@ fn draw_panel_in_area<DB: DrawingBackend>(
         }
     }
 
-    if panel.show_legend {
-        let entries = collect_entries(&panel.series);
-        draw_legend(&chart, &entries, tick_px as i32, figure.dpi)?;
+    if !legend_entries.is_empty() {
+        let (axes_w, _) = chart.plotting_area().dim_in_pixel();
+        draw_legend(
+            &plot_area,
+            &legend_entries,
+            tick_px as i32,
+            figure.dpi,
+            chart_margin + label_left as i32,
+            chart_margin + title_band + legend_gap,
+            axes_w as i32,
+            title_band,
+        )?;
     }
 
     // Axes title after geometry is known so we can center on the plot box
