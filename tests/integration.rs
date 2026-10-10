@@ -102,6 +102,67 @@ fn test_legend() -> Result<()> {
 }
 
 #[test]
+fn test_legend_on_a_long_time_axis() -> Result<()> {
+    std::fs::create_dir_all(OUT_DIR).ok();
+    let x = [0.0, 250.0, 500.0, 750.0, 1000.0];
+    let mean = [1.0, 0.8, 0.5, 0.4, 0.3];
+    let median = [1.0, 1.0, 0.0, 0.0, 0.0];
+    let figure = Figure::builder()
+        .size(Size::inches(8.0, 6.0))
+        .panel(GridPos::new(2, 2, 1), |p| {
+            p.fill_between(
+                &x,
+                &[0.0, 0.0, 0.0, 0.0, 0.0],
+                &[1.0, 1.0, 1.0, 1.0, 0.25],
+                FillBetweenStyle::new()
+                    .color(Color::TABLEAU[0])
+                    .alpha(0.25)
+                    .label("IQR"),
+            )
+            .line(
+                &x,
+                &median,
+                LineStyle::new().color(Color::TABLEAU[0]).label("median"),
+            )
+            .line(
+                &x,
+                &mean,
+                LineStyle::new()
+                    .color(Color::TABLEAU[0])
+                    .dash(LineDash::Dashed)
+                    .label("mean"),
+            )
+            .axes(
+                AxesStyle::new()
+                    .title("CMRA_1_2 (240 traces)")
+                    .x_label("time (min)")
+                    .y_label("engagers")
+                    .x_range(0.0, 1000.0)
+                    .y_range(-1.0, 1.0)
+                    .legend(LegendStyle::show()),
+            );
+        })
+        .panel(GridPos::new(2, 2, 2), |p| {
+            p.line(&x, &mean, LineStyle::new())
+                .axes(AxesStyle::new().title("other").x_range(0.0, 1000.0).y_range(-1.0, 1.0));
+        })
+        .panel(GridPos::new(2, 2, 3), |p| {
+            p.line(&x, &mean, LineStyle::new())
+                .axes(AxesStyle::new().x_range(0.0, 1000.0).y_range(-1.0, 1.0));
+        })
+        .panel(GridPos::new(2, 2, 4), |p| {
+            p.line(&x, &[0.0, 0.0, 0.0, 0.0, 0.0], LineStyle::new())
+                .axes(AxesStyle::new().x_range(0.0, 1000.0).y_range(-1.0, 1.0));
+        })
+        .build()?;
+    let path = Path::new(OUT_DIR).join("test_legend_time_axis.png");
+    figure.save(&path, SaveOptions::default())?;
+    let metadata = std::fs::metadata(&path).map_err(|_| Error::Io("output missing".into()))?;
+    assert!(metadata.len() > 1_000);
+    Ok(())
+}
+
+#[test]
 fn test_horizontal_boxplot() -> Result<()> {
     std::fs::create_dir_all(OUT_DIR).ok();
 

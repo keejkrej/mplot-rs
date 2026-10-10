@@ -318,16 +318,7 @@ fn draw_panel_in_area<DB: DrawingBackend>(
 
     if panel.show_legend {
         let entries = collect_entries(&panel.series);
-        draw_legend(
-            &mut chart,
-            &entries,
-            tick_px as i32,
-            figure.dpi,
-            xmin,
-            xmax,
-            ymin,
-            ymax,
-        )?;
+        draw_legend(&chart, &entries, tick_px as i32, figure.dpi)?;
     }
 
     // Axes title after geometry is known so we can center on the plot box

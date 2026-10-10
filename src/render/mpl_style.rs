@@ -18,6 +18,11 @@
 //! | `xtick.major.size`   | `MPL_XTICK_MAJOR_SIZE`     |
 //! | `xtick.major.width`  | `MPL_XTICK_MAJOR_WIDTH`    |
 //! | `xtick.major.pad`    | `MPL_XTICK_MAJOR_PAD`      |
+//! | `legend.borderpad`   | `MPL_LEGEND_BORDER_PAD`    |
+//! | `legend.labelspacing`| `MPL_LEGEND_LABEL_SPACING` |
+//! | `legend.handlelength`| `MPL_LEGEND_HANDLE_LENGTH` |
+//! | `legend.handletextpad` | `MPL_LEGEND_HANDLE_TEXT_PAD` |
+//! | `legend.borderaxespad` | `MPL_LEGEND_BORDER_AXES_PAD` |
 
 pub const MPL_FONT: &str = "DejaVu Sans";
 
@@ -39,6 +44,13 @@ pub const MPL_LABEL_PAD: f64 = 4.0;
 pub const MPL_XTICK_MAJOR_SIZE: f64 = 3.5;
 pub const MPL_XTICK_MAJOR_WIDTH: f64 = 0.8;
 pub const MPL_XTICK_MAJOR_PAD: f64 = 3.5;
+
+/// Matplotlib legend spacing, in font-size units (`legend.*` rcParams).
+pub const MPL_LEGEND_BORDER_PAD: f64 = 0.4;
+pub const MPL_LEGEND_LABEL_SPACING: f64 = 0.5;
+pub const MPL_LEGEND_HANDLE_LENGTH: f64 = 2.0;
+pub const MPL_LEGEND_HANDLE_TEXT_PAD: f64 = 0.8;
+pub const MPL_LEGEND_BORDER_AXES_PAD: f64 = 0.5;
 
 pub const MPL_SUBPLOT_LEFT: f64 = 0.125;
 pub const MPL_SUBPLOT_RIGHT: f64 = 0.9;
@@ -99,8 +111,8 @@ pub fn label_area_bottom_px(label_fontsize: f64, tick_fontsize: f64, dpi: u32) -
     let tick_px = pt_to_px(tick_fontsize.max(MPL_TICK_FONT_SIZE * 0.5), dpi);
     let tick_mark = tick_size_px(dpi) as f64;
     let pad_px = pt_to_px(MPL_XTICK_MAJOR_PAD + MPL_LABEL_PAD, dpi);
-    (label_px * 0.85 + tick_px * 0.9 + tick_mark + pad_px + chart_margin_px(dpi) as f64)
-        .round() as u32
+    (label_px * 0.85 + tick_px * 0.9 + tick_mark + pad_px + chart_margin_px(dpi) as f64).round()
+        as u32
 }
 
 /// Extra top margin for panel titles (`axes.titlepad` + part of title height).
