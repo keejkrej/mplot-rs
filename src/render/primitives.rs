@@ -537,6 +537,19 @@ fn draw_markers<DB: DrawingBackend>(
     Ok(())
 }
 
+/// Face of a matplotlib `Rectangle`.
+///
+/// Plotters fills a rect by stroking one-pixel scanlines (`draw_rect` →
+/// `draw_line`). `stroke_width: 0` makes `draw_line` a no-op, so the bar
+/// collapses to nothing. The edge, when requested, is a separate stroke.
+fn filled_rect_style(color: crate::color::Color) -> ShapeStyle {
+    ShapeStyle {
+        color: color.to_rgba(),
+        filled: true,
+        stroke_width: 1,
+    }
+}
+
 fn draw_bar<DB: DrawingBackend>(
     chart: &mut Chart<'_, DB>,
     bar: &BarSeries,
@@ -553,8 +566,20 @@ fn draw_bar<DB: DrawingBackend>(
             .as_ref()
             .and_then(|b| b.get(i).copied())
             .unwrap_or(bar.baseline);
-        let x0 = x - half;
-        let x1 = x + half;
+        // Matplotlib `bar` builds a Rectangle in data space. A log axis maps
+        // each corner, so the width is `data_to_axis(x ± width/2)`, not a
+        // raw subtraction on an already-logged coordinate.
+        let left_edge = x - half;
+        let right_edge = x + half;
+        if !scales.x.usable(left_edge)
+            || !scales.x.usable(right_edge)
+            || !bottom.is_finite()
+            || !height.is_finite()
+        {
+            continue;
+        }
+        let x0 = scales.x.data_to_axis(left_edge);
+        let x1 = scales.x.data_to_axis(right_edge);
         let y_bot = scales.y.data_to_axis(bottom);
         let y_top = scales.y.data_to_axis(bottom + height);
         let (y0, y1) = if y_bot <= y_top {
@@ -565,11 +590,7 @@ fn draw_bar<DB: DrawingBackend>(
         chart
             .draw_series(std::iter::once(Rectangle::new(
                 [(x0, y0), (x1, y1)],
-                ShapeStyle {
-                    color: base_color.to_rgba(),
-                    filled: true,
-                    stroke_width: 0,
-                },
+                filled_rect_style(base_color),
             )))
             .map_err(|_| "failed to draw bar")?;
 
@@ -2500,11 +2521,7 @@ fn draw_barh<DB: DrawingBackend>(
         chart
             .draw_series(std::iter::once(Rectangle::new(
                 [(left, bottom), (right, top)],
-                ShapeStyle {
-                    color: base_color.to_rgba(),
-                    filled: true,
-                    stroke_width: 0,
-                },
+                filled_rect_style(base_color),
             )))
             .map_err(|_| "failed to draw barh rect")?;
 

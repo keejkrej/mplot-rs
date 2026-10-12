@@ -9,7 +9,7 @@ use plotters::style::{FontDesc, FontTransform, IntoFont, RGBColor, ShapeStyle, T
 use crate::axes::{data_bounds, format_axis_tick, tick_plan, view_limits, PanelScales};
 use crate::colormap::{Colormap, Normalize};
 use crate::gridspec::SubplotSlot;
-use crate::panel::TickLabelRotation;
+use crate::panel::{TickLabelRotation, TickLabels};
 use crate::render::layout::{pad_inches_px, panel_rect_for_slot};
 use crate::render::legend::{collect_entries, draw_legend, legend_reserve_px};
 use crate::render::model::{CompiledFigure, CompiledPanel, CompiledSeries};
@@ -102,6 +102,38 @@ fn slot_from_panel(panel: &CompiledPanel) -> SubplotSlot {
     )
 }
 
+/// How many tick marks plotters should emit.
+///
+/// Blank labels are the shared spine of a joint histogram (`tick_params`
+/// with the labels and marks turned off). `hide_*_ticks` drops the count
+/// axis marks without shrinking the gutter that keeps the panels aligned.
+fn tick_mark_count(hide: bool, ticks: Option<&TickLabels>, fallback: usize) -> usize {
+    if hide || tick_labels_are_blank(ticks) {
+        0
+    } else {
+        fallback
+    }
+}
+
+fn tick_labels_are_blank(ticks: Option<&TickLabels>) -> bool {
+    match ticks {
+        Some(ticks) => ticks.labels().iter().all(|label| label.trim().is_empty()),
+        None => false,
+    }
+}
+
+/// True when this side has neither an axis title nor any visible tick text.
+fn axis_text_is_blank(title: Option<&str>, ticks: Option<&TickLabels>) -> bool {
+    if title.is_some_and(|text| !text.trim().is_empty()) {
+        return false;
+    }
+    match ticks {
+        Some(ticks) => ticks.labels().iter().all(|label| label.trim().is_empty()),
+        // Automatic ticks still need a gutter.
+        None => false,
+    }
+}
+
 fn draw_panel_in_area<DB: DrawingBackend>(
     figure: &CompiledFigure,
     panel: &CompiledPanel,
@@ -139,7 +171,7 @@ fn draw_panel_in_area<DB: DrawingBackend>(
     let max_left = (area_width_px as f64 * 0.28).round().max(24.0) as u32;
     let max_bottom = (area_height_px as f64 * 0.42).round().max(24.0) as u32;
     let max_title = (area_height_px as f64 * 0.18).round().max(12.0) as i32;
-    let label_left = label_area_left_px(figure.tick_fontsize, figure.dpi).min(max_left);
+    let mut label_left = label_area_left_px(figure.tick_fontsize, figure.dpi).min(max_left);
     let mut label_bottom =
         label_area_bottom_px(figure.label_fontsize, figure.tick_fontsize, figure.dpi);
     // Rotated category labels need extra bottom gutter for the projected text box.
@@ -167,7 +199,24 @@ fn draw_panel_in_area<DB: DrawingBackend>(
             .round() as u32;
         label_bottom = label_bottom.max(rotated_h);
     }
-    let label_bottom = label_bottom.min(max_bottom);
+    let mut label_bottom = label_bottom.min(max_bottom);
+    // Outer chart margin: keep small so gutters dominate spacing, not double-padding.
+    let chart_margin = chart_margin_px(figure.dpi).max(2);
+    // A shared spine (joint histogram) has no title and blank tick labels.
+    // The default gutter is sized for a 17 pt axis title, which crushes the
+    // bars. Matplotlib's divider pad is the only gap, so drop that gutter
+    // and the outer chart margin on the blank side.
+    let tight_margin = 2i32;
+    let mut margin_bottom = chart_margin;
+    let mut margin_left = chart_margin;
+    if axis_text_is_blank(panel.xlabel.as_deref(), panel.ticks_x.as_ref()) {
+        label_bottom = 0;
+        margin_bottom = tight_margin;
+    }
+    if axis_text_is_blank(panel.ylabel.as_deref(), panel.ticks_y.as_ref()) {
+        label_left = 0;
+        margin_left = tight_margin;
+    }
     // Matplotlib: title sits above the Axes box with axes.titlepad — reserve
     // vertical room only when a title is set. Do not use plotters `.caption`
     // (that centers on the full panel cell, including y-tick gutters).
@@ -177,8 +226,6 @@ fn draw_panel_in_area<DB: DrawingBackend>(
     } else {
         0
     };
-    // Outer chart margin: keep small so gutters dominate spacing, not double-padding.
-    let chart_margin = chart_margin_px(figure.dpi).max(2);
     // Legend sits above the title, outside the axes, so it cannot cover a curve.
     let legend_entries = if panel.show_legend {
         collect_entries(&panel.series)
@@ -193,11 +240,19 @@ fn draw_panel_in_area<DB: DrawingBackend>(
         legend_reserve_px(legend_width, tick_px as i32, &legend_entries)
     };
 
+    let margin_top = if has_title || legend_gap > 0 {
+        chart_margin
+    } else {
+        tight_margin
+    };
+    // No right-hand tick labels. A full margin here opens a gap before an
+    // attached right-hand histogram.
+    let margin_right = tight_margin;
     let mut chart = ChartBuilder::on(&plot_area)
-        .margin_top(chart_margin + title_band + legend_gap)
-        .margin_bottom(chart_margin)
-        .margin_left(chart_margin)
-        .margin_right(chart_margin)
+        .margin_top(margin_top + title_band + legend_gap)
+        .margin_bottom(margin_bottom)
+        .margin_left(margin_left)
+        .margin_right(margin_right)
         .set_label_area_size(LabelAreaPosition::Left, label_left)
         .set_label_area_size(LabelAreaPosition::Bottom, label_bottom)
         .build_cartesian_2d(xmin..xmax, ymin..ymax)
@@ -254,8 +309,16 @@ fn draw_panel_in_area<DB: DrawingBackend>(
         .y_label_style(y_tick_style)
         .axis_style(axis_style)
         .set_all_tick_mark_size(tick_mark)
-        .x_labels(ticks.x_count)
-        .y_labels(ticks.y_count)
+        .x_labels(tick_mark_count(
+            panel.hide_x_ticks,
+            panel.ticks_x.as_ref(),
+            ticks.x_count,
+        ))
+        .y_labels(tick_mark_count(
+            panel.hide_y_ticks,
+            panel.ticks_y.as_ref(),
+            ticks.y_count,
+        ))
         .x_label_formatter(&x_formatter)
         .y_label_formatter(&y_formatter);
 

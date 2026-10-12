@@ -857,6 +857,8 @@ mod tests {
             x_tick_format: Default::default(),
             y_tick_format: Default::default(),
             x_tick_label_rotation: Default::default(),
+            hide_x_ticks: false,
+            hide_y_ticks: false,
             show_legend: false,
             legend_style: Default::default(),
             spines: Default::default(),
