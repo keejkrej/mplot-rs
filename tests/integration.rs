@@ -239,6 +239,73 @@ fn test_histogram() -> Result<()> {
     Ok(())
 }
 
+/// A real IQR is a thick translucent band. PathElement with stroke width 0
+/// used to leave only the two boundary curves.
+#[test]
+fn fill_between_paints_a_band_not_an_outline() -> Result<()> {
+    std::fs::create_dir_all(OUT_DIR).ok();
+
+    let n = 192;
+    let x: Vec<f64> = (0..n).map(|i| i as f64).collect();
+    let y_lo: Vec<f64> = x.iter().map(|t| 1.0 + 0.15 * (t / 20.0).sin()).collect();
+    let y_hi: Vec<f64> = x.iter().map(|t| 3.0 + 0.15 * (t / 17.0).sin()).collect();
+
+    let path = Path::new(OUT_DIR).join("fill_between_band.png");
+    Figure::builder()
+        .panel(GridPos::new(1, 1, 1), |p| {
+            p.fill_between(
+                &x,
+                &y_lo,
+                &y_hi,
+                FillBetweenStyle::new()
+                    .color(Color::rgb(44, 160, 44))
+                    .alpha(0.4)
+                    .label("IQR"),
+            )
+            .axes(
+                AxesStyle::new()
+                    .x_range(0.0, (n - 1) as f64)
+                    .y_range(0.0, 4.0)
+                    .legend(LegendStyle::show()),
+            );
+        })
+        .build()?
+        .save(&path, SaveOptions::default())?;
+
+    let image = image::open(&path).map_err(|err| Error::Io(err.to_string()))?;
+    let rgb = image.to_rgb8();
+    let thickest = thickest_tinted_column(&rgb);
+    assert!(
+        thickest > 12,
+        "IQR band collapsed to an outline (thickest tinted run is {thickest}px)"
+    );
+    Ok(())
+}
+
+/// Longest vertical run of pixels that are green-tinted rather than white.
+fn thickest_tinted_column(image: &image::RgbImage) -> u32 {
+    let (width, height) = image.dimensions();
+    let x0 = width / 4;
+    let x1 = width.saturating_sub(width / 4).max(x0 + 1);
+    let mut best = 0u32;
+    for x in x0..x1 {
+        let mut run = 0u32;
+        for y in 0..height {
+            let pixel = image.get_pixel(x, y);
+            let tinted = pixel[1] > pixel[0].saturating_add(8)
+                && pixel[1] > pixel[2].saturating_add(8)
+                && pixel[1] < 250;
+            if tinted {
+                run += 1;
+                best = best.max(run);
+            } else {
+                run = 0;
+            }
+        }
+    }
+    best
+}
+
 #[test]
 fn test_fill_between() -> Result<()> {
     std::fs::create_dir_all(OUT_DIR).ok();
