@@ -372,6 +372,8 @@ pub struct CompiledPanel {
     pub x_tick_format: TickFormat,
     pub y_tick_format: TickFormat,
     pub x_tick_label_rotation: TickLabelRotation,
+    pub hide_x_ticks: bool,
+    pub hide_y_ticks: bool,
     pub show_legend: bool,
     pub legend_style: LegendStyle,
     pub layout: PanelLayout,

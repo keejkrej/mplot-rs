@@ -76,6 +76,8 @@ fn compile_panel(panel: &PanelSpec, constrained_layout: bool) -> CompiledPanel {
         x_tick_format: axes.x_tick_format_value(),
         y_tick_format: axes.y_tick_format_value(),
         x_tick_label_rotation: axes.x_tick_label_rotation_value(),
+        hide_x_ticks: axes.hide_x_ticks_value(),
+        hide_y_ticks: axes.hide_y_ticks_value(),
         show_legend: axes.legend_value().show,
         legend_style: axes.legend_value(),
         layout,

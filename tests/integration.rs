@@ -282,6 +282,107 @@ fn fill_between_paints_a_band_not_an_outline() -> Result<()> {
     Ok(())
 }
 
+/// Matplotlib `bar` / `barh` on a log axis must paint the bin, not a hairline.
+///
+/// Width and height are `diff(edges)` in data space. A log axis maps each
+/// corner, so one decade on a three-decade axis is about a third of the
+/// frame. `edge_width = 0` must not skip the fill.
+#[test]
+fn log_bars_are_filled_rectangles() -> Result<()> {
+    std::fs::create_dir_all(OUT_DIR).ok();
+    let path = Path::new(OUT_DIR).join("log_bars.png");
+    Figure::builder()
+        .size(Size::inches(6.0, 6.0))
+        .panel(GridPos::new(1, 2, 1), |p| {
+            p.bar(
+                &[55.0],
+                &[8.0],
+                BarStyle::new()
+                    .color(Color::rgb(44, 160, 44))
+                    .width(90.0)
+                    .edge_color(Color::rgb(44, 160, 44))
+                    .edge_width(0.0),
+            )
+            .axes(
+                AxesStyle::new()
+                    .x_scale(Scale::Log)
+                    .x_range(1.0, 1000.0)
+                    .y_range(0.0, 10.0),
+            );
+        })
+        .panel(GridPos::new(1, 2, 2), |p| {
+            p.barh(
+                &[55.0],
+                &[8.0],
+                BarHStyle::new()
+                    .color(Color::rgb(44, 160, 44))
+                    .height(90.0)
+                    .edge_color(Color::rgb(44, 160, 44))
+                    .edge_width(0.0),
+            )
+            .axes(
+                AxesStyle::new()
+                    .y_scale(Scale::Log)
+                    .y_range(1.0, 1000.0)
+                    .x_range(0.0, 10.0),
+            );
+        })
+        .build()?
+        .save(&path, SaveOptions::default().dpi(100))?;
+
+    let image = image::open(&path).map_err(|err| Error::Io(err.to_string()))?;
+    let rgb = image.to_rgb8();
+    let (width, height) = rgb.dimensions();
+    let left = thickest_green_run(&rgb, 0, width / 2, true);
+    let right = thickest_green_run(&rgb, width / 2, width, false);
+    assert!(
+        left > 40,
+        "log-x bar collapsed (thickest green row is {left}px, image {width}x{height})"
+    );
+    assert!(
+        right > 40,
+        "log-y barh collapsed (thickest green column is {right}px, image {width}x{height})"
+    );
+    Ok(())
+}
+
+/// Longest run of green pixels. `horizontal` scans rows; otherwise columns.
+fn thickest_green_run(image: &image::RgbImage, x0: u32, x1: u32, horizontal: bool) -> u32 {
+    let (_width, height) = image.dimensions();
+    let mut best = 0u32;
+    let green = |pixel: &image::Rgb<u8>| {
+        pixel[1] > pixel[0].saturating_add(8)
+            && pixel[1] > pixel[2].saturating_add(8)
+            && pixel[1] < 250
+    };
+    if horizontal {
+        for y in 0..height {
+            let mut run = 0u32;
+            for x in x0..x1 {
+                if green(image.get_pixel(x, y)) {
+                    run += 1;
+                    best = best.max(run);
+                } else {
+                    run = 0;
+                }
+            }
+        }
+    } else {
+        for x in x0..x1 {
+            let mut run = 0u32;
+            for y in 0..height {
+                if green(image.get_pixel(x, y)) {
+                    run += 1;
+                    best = best.max(run);
+                } else {
+                    run = 0;
+                }
+            }
+        }
+    }
+    best
+}
+
 /// Longest vertical run of pixels that are green-tinted rather than white.
 fn thickest_tinted_column(image: &image::RgbImage) -> u32 {
     let (width, height) = image.dimensions();

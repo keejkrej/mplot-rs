@@ -293,6 +293,8 @@ pub struct AxesStyle {
     x_tick_format: TickFormat,
     y_tick_format: TickFormat,
     x_tick_label_rotation: TickLabelRotation,
+    hide_x_ticks: bool,
+    hide_y_ticks: bool,
     legend: LegendStyle,
 }
 
@@ -429,6 +431,18 @@ impl AxesStyle {
         self
     }
 
+    /// Omit x tick marks and labels. The label gutter is unchanged.
+    pub fn hide_x_ticks(mut self, hide: bool) -> Self {
+        self.hide_x_ticks = hide;
+        self
+    }
+
+    /// Omit y tick marks and labels. The label gutter is unchanged.
+    pub fn hide_y_ticks(mut self, hide: bool) -> Self {
+        self.hide_y_ticks = hide;
+        self
+    }
+
     pub fn legend(mut self, legend: LegendStyle) -> Self {
         self.legend = legend;
         self
@@ -500,6 +514,14 @@ impl AxesStyle {
 
     pub(crate) fn x_tick_label_rotation_value(&self) -> TickLabelRotation {
         self.x_tick_label_rotation
+    }
+
+    pub(crate) fn hide_x_ticks_value(&self) -> bool {
+        self.hide_x_ticks
+    }
+
+    pub(crate) fn hide_y_ticks_value(&self) -> bool {
+        self.hide_y_ticks
     }
 
     pub fn spines(mut self, spines: SpinesStyle) -> Self {
