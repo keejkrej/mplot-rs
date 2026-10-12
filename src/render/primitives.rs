@@ -710,6 +710,34 @@ fn histogram_bins(data: &[f64], bins: usize) -> (Vec<f64>, Vec<f64>) {
     (edges, counts)
 }
 
+/// Fill a closed polygon.
+///
+/// `PathElement` ignores `filled` and strokes the path. `stroke_width: 0`
+/// polygonizes a zero-width ribbon, so a band collapses to its two edges.
+/// `Polygon` calls `fill_polygon`, which paints the interior. The backend
+/// closes the ring, so the caller must not repeat the first vertex.
+fn draw_filled_polygon<DB: DrawingBackend>(
+    chart: &mut Chart<'_, DB>,
+    polygon: Vec<(f64, f64)>,
+    color: crate::color::Color,
+    err: &'static str,
+) -> Result<(), &'static str> {
+    if polygon.len() < 3 {
+        return Ok(());
+    }
+    chart
+        .draw_series(std::iter::once(Polygon::new(
+            polygon,
+            ShapeStyle {
+                color: color.to_rgba(),
+                filled: true,
+                stroke_width: 0,
+            },
+        )))
+        .map_err(|_| err)?;
+    Ok(())
+}
+
 fn draw_fill_between<DB: DrawingBackend>(
     chart: &mut Chart<'_, DB>,
     fill: &FillBetweenSeries,
@@ -733,24 +761,13 @@ fn draw_fill_between<DB: DrawingBackend>(
     if polygon.len() < 3 {
         return Ok(());
     }
-    polygon.push(polygon[0]);
     // Prefer explicit fill.alpha when set; otherwise color's own alpha channel.
     let fill_color = if fill.alpha < 1.0 {
         fill.color.with_alpha(fill.alpha)
     } else {
         fill.color
     };
-    chart
-        .draw_series(std::iter::once(PathElement::new(
-            polygon,
-            ShapeStyle {
-                color: fill_color.to_rgba(),
-                filled: true,
-                stroke_width: 0,
-            },
-        )))
-        .map_err(|_| "failed to draw fill_between")?;
-    Ok(())
+    draw_filled_polygon(chart, polygon, fill_color, "failed to draw fill_between")
 }
 
 fn draw_fill_betweenx<DB: DrawingBackend>(
@@ -776,23 +793,12 @@ fn draw_fill_betweenx<DB: DrawingBackend>(
     if polygon.len() < 3 {
         return Ok(());
     }
-    polygon.push(polygon[0]);
     let fill_color = if fill.alpha < 1.0 {
         fill.color.with_alpha(fill.alpha)
     } else {
         fill.color
     };
-    chart
-        .draw_series(std::iter::once(PathElement::new(
-            polygon,
-            ShapeStyle {
-                color: fill_color.to_rgba(),
-                filled: true,
-                stroke_width: 0,
-            },
-        )))
-        .map_err(|_| "failed to draw fill_betweenx")?;
-    Ok(())
+    draw_filled_polygon(chart, polygon, fill_color, "failed to draw fill_betweenx")
 }
 
 fn draw_stem<DB: DrawingBackend>(
@@ -1013,17 +1019,7 @@ fn draw_stairs<DB: DrawingBackend>(
             poly.push(scales.map_xy(*edges.last().unwrap(), baseline));
             poly.push(scales.map_xy(*edges.first().unwrap(), baseline));
         }
-        poly.push(poly[0]);
-        chart
-            .draw_series(std::iter::once(PathElement::new(
-                poly,
-                ShapeStyle {
-                    color: fill_color.to_rgba(),
-                    filled: true,
-                    stroke_width: 0,
-                },
-            )))
-            .map_err(|_| "failed to draw stairs fill")?;
+        draw_filled_polygon(chart, poly, fill_color, "failed to draw stairs fill")?;
     }
 
     if stroke_width > 0.0 {
